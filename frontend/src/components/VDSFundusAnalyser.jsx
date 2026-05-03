@@ -3,7 +3,7 @@
 //cataract Function
 
 import { useState, useRef, useEffect } from "react";
-import { analyzeVDS } from "../services/api";
+import { analyzeVDS } from "../services/api_cataract";
 
 /* ── Grade config ─────────────────────────────────── */
 const GRADE_CONFIG = {
