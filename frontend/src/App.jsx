@@ -1,8 +1,8 @@
 import { Routes, Route, Outlet } from "react-router-dom";
-import DiabeticRetinopathy from "./components/DiabeticRetinopathy2";
-import OCTFundusAnalyser from "./components/OCTFundusAnalyser2";
-import GlaucomaFundusAnalyser from "./components/GlaucomaFundusAnalyser2";
-import VDSFundusAnalyser from "./components/VDSFundusAnalyser2";
+import DiabeticRetinopathy from "./components/DiabeticRetinopathy";
+import OCTFundusAnalyser from "./components/OCTFundusAnalyser";
+import GlaucomaFundusAnalyser from "./components/GlaucomaFundusAnalyser";
+import VDSFundusAnalyser from "./components/VDSFundusAnalyser";
 import Home from "./components/Home";
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
