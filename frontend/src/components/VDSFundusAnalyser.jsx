@@ -494,7 +494,7 @@ export default function VDSFundusAnalyser() {
               )}
 
               {/* How it works */}
-              {!result && !loading && (
+              {/* {!result && !loading && (
                 <div className="card" style={{
                   padding: "18px 20px",
                   animation: "fadeUp 0.5s ease both", animationDelay: "0.1s"
@@ -518,7 +518,7 @@ export default function VDSFundusAnalyser() {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* ── RIGHT ── */}
