@@ -304,7 +304,7 @@ export default function VDSFundusAnalyser() {
       <div className="min-h-screen dot-bg">
 
         {/* ── Nav bar ── */}
-        <nav style={{
+        {/* <nav style={{
           background: "rgba(255,255,255,0.9)",
           backdropFilter: "blur(12px)",
           borderBottom: "1px solid #e8edf3",
@@ -337,7 +337,7 @@ export default function VDSFundusAnalyser() {
               </span>
             </div>
           </div>
-        </nav>
+        </nav> */}
 
         {/* ── Body ── */}
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 64px" }}>
