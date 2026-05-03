@@ -344,19 +344,19 @@ export default function VDSFundusAnalyser() {
 
           {/* Page heading */}
           <div style={{ marginBottom: 32, animation: "fadeUp 0.5s ease both" }}>
-            <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span>
+            {/* <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span> */}
             <h1 style={{
               fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 600,
               color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1.2
             }}>
-              Visibility Degradation{" "}
+              Cataract Analyser &{" "}
               <span style={{
                 background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
-              }}>Score Analyser</span>
+              }}>Severity Detection</span>
             </h1>
             <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10, maxWidth: 460, lineHeight: 1.7 }}>
-              Upload a retinal fundus photograph. Our model computes a composite VDS across 5 clinical signals to classify cataract severity.
+              Upload an retinal image and get instant cataract insights.
             </p>
           </div>
 
