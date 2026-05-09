@@ -172,13 +172,25 @@ export default function GlaucomaFundusAnalyser() {
               <div className="flex flex-col items-center">
                 <img src={preview} alt="Preview" className="object-cover w-48 h-48 mb-4 border shadow-sm rounded-2xl border-slate-100" />
                 <p className="mb-6 font-mono text-xs text-slate-400">{file.name}</p>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleAnalyse(); }}
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
-                >
-                  {loading ? "Processing..." : "Start Analysis"}
-                </button>
+                <div className="flex flex-col items-center gap-3 sm:flex-row">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAnalyse(); }}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
+                  >
+                    {loading ? "Processing..." : "Start Analysis"}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      inputRef.current?.click();
+                    }}
+                    disabled={loading}
+                    className="px-8 py-2.5 rounded-xl text-sm font-bold text-slate-700 bg-white border border-slate-200 shadow-sm hover:bg-slate-50 transition-all disabled:opacity-50"
+                  >
+                    Upload Another Image
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="text-center cursor-pointer">
@@ -223,6 +235,15 @@ export default function GlaucomaFundusAnalyser() {
                    <div className={`text-4xl font-black font-mono ${activeMeta.color}`}>{result.glaucoma.prediction.confidence}%</div>
                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Confidence</div>
                 </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handleReset}
+                  className="px-5 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-50 transition"
+                >
+                  Upload Another Image
+                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
