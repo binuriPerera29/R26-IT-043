@@ -9,7 +9,7 @@ import { predictGlaucoma, analyseCDR } from "../services/api_glaucoma";
 
 // ── Metadata ──────────────────────────────────────────────────────────────
 const RISK_META = {
-  Normal: {
+  normal: {
     color: "text-emerald-500",
     bg: "bg-emerald-50",
     border: "border-emerald-200",
@@ -19,7 +19,7 @@ const RISK_META = {
     badge: "bg-emerald-50 text-emerald-500 border-emerald-200",
     label: "Normal / Low Risk",
   },
-  Suspect: {
+  early: {
     color: "text-orange-500",
     bg: "bg-orange-50",
     border: "border-orange-200",
@@ -27,9 +27,9 @@ const RISK_META = {
     bar: "bg-orange-500",
     accent: "border-l-orange-500",
     badge: "bg-orange-50 text-orange-500 border-orange-200",
-    label: "Glaucoma Suspect",
+    label: "Early Glaucoma",
   },
-  Glaucoma: {
+  advanced: {
     color: "text-red-500",
     bg: "bg-red-50",
     border: "border-red-200",
@@ -37,7 +37,7 @@ const RISK_META = {
     bar: "bg-red-500",
     accent: "border-l-red-500",
     badge: "bg-red-50 text-red-500 border-red-200",
-    label: "Glaucoma Detected",
+    label: "Advanced Glaucoma",
   },
 };
 
@@ -143,7 +143,7 @@ export default function GlaucomaFundusAnalyser() {
     setError(null);
   };
 
-  const activeMeta = result ? RISK_META[result.glaucoma.prediction.class_name] || RISK_META.Normal : null;
+  const activeMeta = result ? RISK_META[result.glaucoma.prediction.class_name] || RISK_META.normal : null;
 
   return (
     <div className="w-full min-h-screen font-sans text-slate-900" style={dotBackgroundStyle}>
@@ -228,7 +228,7 @@ export default function GlaucomaFundusAnalyser() {
               <div className={`p-6 rounded-3xl border shadow-sm ${activeMeta.bg} ${activeMeta.border} flex items-center justify-between`}>
                 <div>
                   <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1">AI Classification</span>
-                  <h2 className={`text-3xl font-black ${activeMeta.color}`}>{result.glaucoma.prediction.class_name}</h2>
+                  <h2 className={`text-3xl font-black ${activeMeta.color}`}>{activeMeta.label}</h2>
                   <p className="mt-1 text-xs font-medium text-slate-500">Based on global features and structural metrics</p>
                 </div>
                 <div className="text-right">
@@ -252,7 +252,7 @@ export default function GlaucomaFundusAnalyser() {
                   <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-6">Class Probabilities</span>
                   <div className="space-y-5">
                     {Object.entries(result.glaucoma.prediction.probabilities).map(([key, val]) => {
-                      const meta = RISK_META[key] || RISK_META.Normal;
+                      const meta = RISK_META[key] || RISK_META.normal;
                       return (
                         <div key={key}>
                           <div className="flex justify-between items-center mb-1.5">
