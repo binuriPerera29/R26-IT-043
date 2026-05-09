@@ -91,7 +91,7 @@ function UploadIcon() {
   );
 }
 
-// ── ProbabilityBar ──────────────────────────────────────────────────────────
+// ── ProbabilityBarn ──────────────────────────────────────────────────────────
 function ProbabilityBar({ cls, value, isTop }) {
   const meta = CLASS_META[cls];
   return (
