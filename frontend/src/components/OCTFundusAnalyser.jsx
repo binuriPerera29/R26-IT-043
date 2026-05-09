@@ -6,7 +6,7 @@
 import { useState, useRef, useCallback } from "react";
 import { predictOCT } from "../services/api_oct.js";
 
-// ── Class metadata ──────────────────────────────────────────────────────────
+// ── Class metadata details ──────────────────────────────────────────────────────────
 const CLASS_META = {
   CNV: {
     color: "text-red-500",
