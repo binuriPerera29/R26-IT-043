@@ -52,7 +52,7 @@ const CLASS_META = {
 
 const CLASS_ORDER = ["CNV", "DME", "DRUSEN", "NORMAL"];
 
-// ── Icons ───────────────────────────────────────────────────────────────────
+// ── Icons details OCT ───────────────────────────────────────────────────────────────────
 function EyeIcon({ size = 18, className = "" }) {
   return (
     <svg
