@@ -317,8 +317,7 @@ export default function DiabeticRetinopathy() {
             <div>
               <p className="text-sm font-bold text-blue-900 uppercase tracking-widest mb-2">Clinical Use Notice</p>
               <p className="text-gray-800 leading-relaxed">
-                This AI-assisted tool is intended to support clinical decision-making only. Results must be reviewed by a qualified ophthalmologist. Do not use as the sole basis for diagnosis or treatment decisions.
-              </p>
+                This AI-assisted tool is intended to support clinical decision-making only.</p>
             </div>
           </div>
         </div>
