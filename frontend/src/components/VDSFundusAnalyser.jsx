@@ -605,7 +605,7 @@ export default function VDSFundusAnalyser() {
                   </div>
 
                   {/* Class probabilities */}
-                  <div className="card" style={{ padding: "20px 24px" }}>
+                  {/* <div className="card" style={{ padding: "20px 24px" }}>
                     <span className="accent-label" style={{ marginBottom: 16, display: "block" }}>
                       Class Probabilities
                     </span>
@@ -621,7 +621,7 @@ export default function VDSFundusAnalyser() {
                         );
                       })}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               )}
             </div>
