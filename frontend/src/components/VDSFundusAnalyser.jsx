@@ -304,7 +304,7 @@ export default function VDSFundusAnalyser() {
       <div className="min-h-screen dot-bg">
 
         {/* ── Nav bar ── */}
-        <nav style={{
+        {/* <nav style={{
           background: "rgba(255,255,255,0.9)",
           backdropFilter: "blur(12px)",
           borderBottom: "1px solid #e8edf3",
@@ -337,26 +337,26 @@ export default function VDSFundusAnalyser() {
               </span>
             </div>
           </div>
-        </nav>
+        </nav> */}
 
         {/* ── Body ── */}
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 64px" }}>
 
           {/* Page heading */}
           <div style={{ marginBottom: 32, animation: "fadeUp 0.5s ease both" }}>
-            <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span>
+            {/* <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span> */}
             <h1 style={{
               fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 600,
               color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1.2
             }}>
-              Visibility Degradation{" "}
+              Cataract Analyser &{" "}
               <span style={{
                 background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
-              }}>Score Analyser</span>
+              }}>Severity Detection</span>
             </h1>
             <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10, maxWidth: 460, lineHeight: 1.7 }}>
-              Upload a retinal fundus photograph. Our model computes a composite VDS across 5 clinical signals to classify cataract severity.
+              Upload an retinal image and get instant cataract insights.
             </p>
           </div>
 
@@ -494,7 +494,7 @@ export default function VDSFundusAnalyser() {
               )}
 
               {/* How it works */}
-              {!result && !loading && (
+              {/* {!result && !loading && (
                 <div className="card" style={{
                   padding: "18px 20px",
                   animation: "fadeUp 0.5s ease both", animationDelay: "0.1s"
@@ -518,7 +518,7 @@ export default function VDSFundusAnalyser() {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* ── RIGHT ── */}
@@ -592,9 +592,9 @@ export default function VDSFundusAnalyser() {
                             </span>
                           )}
                         </div>
-                        {result.vds_source === "seeded" && (
+                        {/* {result.vds_source === "seeded" && (
                           <span style={{ fontSize: 10, color: "#f59e0b", display: "block", marginTop: 4 }}>⚠ range-corrected</span>
-                        )}
+                        )} */}
                       </div>
                     </div>
                     <div className="mono" style={{
