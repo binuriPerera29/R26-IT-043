@@ -9,7 +9,7 @@ import { predictGlaucoma, analyseCDR } from "../services/api_glaucoma";
 
 // ── Metadata ──────────────────────────────────────────────────────────────
 const RISK_META = {
-  Normal: {
+  normal: {
     color: "text-emerald-500",
     bg: "bg-emerald-50",
     border: "border-emerald-200",
@@ -19,7 +19,7 @@ const RISK_META = {
     badge: "bg-emerald-50 text-emerald-500 border-emerald-200",
     label: "Normal / Low Risk",
   },
-  Suspect: {
+  early: {
     color: "text-orange-500",
     bg: "bg-orange-50",
     border: "border-orange-200",
@@ -27,9 +27,9 @@ const RISK_META = {
     bar: "bg-orange-500",
     accent: "border-l-orange-500",
     badge: "bg-orange-50 text-orange-500 border-orange-200",
-    label: "Glaucoma Suspect",
+    label: "Early Glaucoma",
   },
-  Glaucoma: {
+  advanced: {
     color: "text-red-500",
     bg: "bg-red-50",
     border: "border-red-200",
@@ -37,7 +37,7 @@ const RISK_META = {
     bar: "bg-red-500",
     accent: "border-l-red-500",
     badge: "bg-red-50 text-red-500 border-red-200",
-    label: "Glaucoma Detected",
+    label: "Advanced Glaucoma",
   },
 };
 
@@ -143,7 +143,7 @@ export default function GlaucomaFundusAnalyser() {
     setError(null);
   };
 
-  const activeMeta = result ? RISK_META[result.glaucoma.prediction.class_name] || RISK_META.Normal : null;
+  const activeMeta = result ? RISK_META[result.glaucoma.prediction.class_name] || RISK_META.normal : null;
 
   return (
     <div className="w-full min-h-screen font-sans text-slate-900" style={dotBackgroundStyle}>
@@ -172,13 +172,25 @@ export default function GlaucomaFundusAnalyser() {
               <div className="flex flex-col items-center">
                 <img src={preview} alt="Preview" className="object-cover w-48 h-48 mb-4 border shadow-sm rounded-2xl border-slate-100" />
                 <p className="mb-6 font-mono text-xs text-slate-400">{file.name}</p>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleAnalyse(); }}
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
-                >
-                  {loading ? "Processing..." : "Start Analysis"}
-                </button>
+                <div className="flex flex-col items-center gap-3 sm:flex-row">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAnalyse(); }}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
+                  >
+                    {loading ? "Processing..." : "Start Analysis"}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      inputRef.current?.click();
+                    }}
+                    disabled={loading}
+                    className="px-8 py-2.5 rounded-xl text-sm font-bold text-slate-700 bg-white border border-slate-200 shadow-sm hover:bg-slate-50 transition-all disabled:opacity-50"
+                  >
+                    Upload Another Image
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="text-center cursor-pointer">
@@ -216,7 +228,7 @@ export default function GlaucomaFundusAnalyser() {
               <div className={`p-6 rounded-3xl border shadow-sm ${activeMeta.bg} ${activeMeta.border} flex items-center justify-between`}>
                 <div>
                   <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1">AI Classification</span>
-                  <h2 className={`text-3xl font-black ${activeMeta.color}`}>{result.glaucoma.prediction.class_name}</h2>
+                  <h2 className={`text-3xl font-black ${activeMeta.color}`}>{activeMeta.label}</h2>
                   <p className="mt-1 text-xs font-medium text-slate-500">Based on global features and structural metrics</p>
                 </div>
                 <div className="text-right">
@@ -225,13 +237,22 @@ export default function GlaucomaFundusAnalyser() {
                 </div>
               </div>
 
+              <div className="flex justify-end">
+                <button
+                  onClick={handleReset}
+                  className="px-5 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-full shadow-sm hover:bg-slate-50 transition"
+                >
+                  Upload Another Image
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* Probabilities */}
                 <div className="p-6 bg-white border shadow-sm border-slate-200 rounded-3xl">
                   <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-6">Class Probabilities</span>
                   <div className="space-y-5">
                     {Object.entries(result.glaucoma.prediction.probabilities).map(([key, val]) => {
-                      const meta = RISK_META[key] || RISK_META.Normal;
+                      const meta = RISK_META[key] || RISK_META.normal;
                       return (
                         <div key={key}>
                           <div className="flex justify-between items-center mb-1.5">
