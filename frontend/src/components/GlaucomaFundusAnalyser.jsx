@@ -248,7 +248,7 @@ export default function GlaucomaFundusAnalyser() {
 
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 {/* Probabilities */}
-                <div className="p-6 bg-white border shadow-sm border-slate-200 rounded-3xl">
+                {/* <div className="p-6 bg-white border shadow-sm border-slate-200 rounded-3xl">
                   <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-6">Class Probabilities</span>
                   <div className="space-y-5">
                     {Object.entries(result.glaucoma.prediction.probabilities).map(([key, val]) => {
@@ -269,7 +269,7 @@ export default function GlaucomaFundusAnalyser() {
                       );
                     })}
                   </div>
-                </div>
+                </div> */}
               </div>             
 
             </div>
