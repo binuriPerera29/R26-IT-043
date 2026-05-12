@@ -218,10 +218,10 @@ R26-IT-043/
 
 | Disease | Architecture | Accuracy | Input Size | Weights |
 |---------|-------------|----------|-----------|---------|
-| Diabetic Retinopathy | EfficientNetV2S | High | 224x224 | `best_dr_efficientnetv2s.pth` |
-| Cataract | EfficientNet-B3 | High | 224x224 | `best_effb3_cataract_v2.pth` |
-| Glaucoma | EfficientNet-B0 | High | 224x224 | `glucoma_best_model_b0_clean.pth` |
-| OCT | EfficientNet-B0 | High | 224x224 | `best_efficientnet_b0_oct.pth` |
+| Diabetic Retinopathy | EfficientNetV2S | 92.67% | 224x224 | `best_dr_efficientnetv2s.pth` |
+| Cataract | EfficientNet-B3 | 93.22% | 224x224 | `best_effb3_cataract_v2.pth` |
+| Glaucoma | EfficientNet-B0 | 96.05% | 224x224 | `glucoma_best_model_b0_clean.pth` |
+| DME | EfficientNet-B0 | 92.77 | 224x224 | `best_efficientnet_b0_oct.pth` |
 
 ## 💻 Usage Example
 
@@ -303,21 +303,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 This system is designed as a **diagnostic aid** and should **not** be used as the sole basis for clinical decision-making. Always consult with qualified ophthalmologists for professional medical diagnosis and treatment.
 
 ## 👨‍💻 Research Team
-**Project Title**
+**Project Title:** AI-Driven Multi-Disease Diagnosis of Diabetes-Related Eye Disorders
 
-- AI-Driven Multi-Disease Diagnosis of Diabetes-Related Eye Disorders
+**Research Group:** R26-IT-043
 
-**Research Group**
+**Research Cluster:** SST – Software Systems & Technologies
 
-- R26-IT-043
-
-**Research Cluster**
-
-- SST – Software Systems & Technologies
-
-**Institution**
-
-- Sri Lanka Institute of Information Technology (SLIIT)
+**Institution:** Sri Lanka Institute of Information Technology (SLIIT)
 
 ## 📧 Contact & Support
 
