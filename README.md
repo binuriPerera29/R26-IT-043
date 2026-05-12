@@ -13,18 +13,18 @@ This project introduces an AI-Driven Multi-Disease Diagnosis Framework that auto
 
 The system integrates specialized AI modules for:
 
-**🔴 Diabetic Retinopathy (DR)**
-**🟢 Glaucoma**
-**🟡 Cataract**
-**🔵 Diabetic Macular Edema (DME)**
+- **🔴 Diabetic Retinopathy (DR)**
+- **🟢 Glaucoma**
+- **🟡 Cataract**
+- **🔵 Diabetic Macular Edema (DME)**
 
 Unlike traditional black-box AI systems, this framework provides:
 
-**✅ Disease severity prediction**
-**✅ Risk score estimation**
-**✅ Confidence analysis**
-**✅ Explainable visual outputs using Grad-CAM heatmaps**
-**✅ Clinically interpretable results**
+- ✅ Disease severity prediction
+- ✅ Risk score estimation
+- ✅ Confidence analysis
+- ✅ Explainable visual outputs using Grad-CAM heatmaps
+- ✅ Clinically interpretable results
 
 The proposed solution is designed as a scalable web-based diagnostic support platform for hospitals, screening centers, telemedicine systems, and ophthalmologists.
 
