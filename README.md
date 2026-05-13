@@ -4,6 +4,7 @@
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
 ![React](https://img.shields.io/badge/React-19.1+-61DAFB?logo=react)
 ![License](https://img.shields.io/badge/License-MIT-green)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/binuriPerera29/R26-IT-043)
 
 ## 📌 Project Overview
 
@@ -313,7 +314,8 @@ This system is designed as a **diagnostic aid** and should **not** be used as th
 
 ## 📧 Contact & Support
 
-For questions, issues, or collaborations, please reach out through the project repository.
+- **GitHub Repository**: [github.com/binuriPerera29/R26-IT-043](https://github.com/binuriPerera29/R26-IT-043)
+- For questions, issues, or collaborations, please reach out through the project repository.
 
 ## 🙏 Acknowledgments
 
