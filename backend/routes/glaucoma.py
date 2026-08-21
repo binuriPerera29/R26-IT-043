@@ -1,16 +1,58 @@
 """
-Glaucoma Detection Blueprint
-────────────────────────────
-POST /api/glaucoma/predict   → classify fundus image (+ TTA + Grad-CAM)
+Glaucoma Detection Blueprint  (with OOD detection)
+────────────────────────────────────────────────────────────────
+POST /api/glaucoma/predict   → classify fundus image (+ deterministic TTA + Grad-CAM + OOD)
 GET  /api/glaucoma/classes   → return class names
 
 CLASS ORDER (must match notebook): ["advanced", "early", "normal"]
   index 0 = advanced
   index 1 = early
   index 2 = normal
+
+OOD DETECTION
+─────────────
+Ported from notebook cells OOD-A / OOD-B / OOD-C:
+  • FeatureExtractor  → 1280-d embedding from model.backbone (timm EffNet-B0)
+  • Per-class means + shared (tied) covariance, fitted on the TRAIN set
+  • Mahalanobis distance = min over classes of (x-mean)^T * cov_inv * (x-mean)
+  • threshold = 99th percentile of TRAIN distances (from ood_config.json)
+
+An image is flagged as OOD ("ood") if EITHER:
+  (a) mahalanobis_distance > ood_threshold   (genuinely unfamiliar image), OR
+  (b) softmax confidence   < CONFIDENCE_THRESHOLD (0.70)  (model itself unsure)
+
+Both cases return the SAME "ood" label / risk block, so the frontend only
+needs to branch on `prediction.class_name == "ood"` (or `ood.is_ood`).
+
+REQUIRED APP CONFIG (set these wherever you build the Flask app, alongside
+MODEL / DEVICE / CLASS_NAMES / MODEL_PATH):
+    app.config["OOD_CONFIG_PATH"] = "/path/to/ood_config.json"
+If you don't set it, the blueprint will try to auto-locate
+"ood_config.json" next to MODEL_PATH. If it still can't find it, OOD
+detection via Mahalanobis distance is silently disabled (the low-confidence
+rule still applies).
+
+TTA (TEST-TIME AUGMENTATION) — DETERMINISTIC
+─────────────────────────────────────────────
+Previously, TTA used RandomCrop / RandomHorizontalFlip / ColorJitter, which
+made repeated predictions on the SAME image return different confidence
+scores (and occasionally different class_name near decision boundaries)
+on every call, since nothing was seeded.
+
+This version replaces that with classic deterministic 5-crop TTA:
+  1. center crop
+  2. top-left corner crop
+  3. top-right corner crop
+  4. bottom-left corner crop
+  5. bottom-right corner crop
+No randomness anywhere — the same input image always produces the exact
+same crops, and therefore the exact same averaged probabilities, class_idx,
+confidence, OOD result, and Grad-CAM target every time.
 """
 
 import io
+import os
+import json
 import base64
 import traceback
 
@@ -20,35 +62,58 @@ from PIL import Image
 from flask import Blueprint, request, jsonify, current_app
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
+import torchvision.transforms.functional as TF
 
 glaucoma_bp = Blueprint("glaucoma", __name__)
 
 IMG_SIZE = 224
 
+# Below this softmax confidence, we no longer trust the class prediction and
+# treat the image exactly like an OOD detection (same label + risk block).
+CONFIDENCE_THRESHOLD = 0.70
+
+_NORMALIZE_MEAN = [0.485, 0.456, 0.406]
+_NORMALIZE_STD  = [0.229, 0.224, 0.225]
+
+
 # =============================================================================
-#  Transforms — identical to the notebook's _transform
+#  Transforms — deterministic 5-crop TTA (no RandomCrop/Flip/Jitter)
 # =============================================================================
 
 def _base_transform():
+    """Single deterministic pass — plain resize, no cropping."""
     return T.Compose([
         T.Resize((IMG_SIZE, IMG_SIZE)),
         T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406],
-                    std =[0.229, 0.224, 0.225]),
+        T.Normalize(mean=_NORMALIZE_MEAN, std=_NORMALIZE_STD),
     ])
 
-def _tta_transform():
-    return T.Compose([
-        T.Resize((IMG_SIZE + 32, IMG_SIZE + 32)),
-        T.RandomCrop(IMG_SIZE),
-        T.RandomHorizontalFlip(),
-        T.ColorJitter(brightness=0.1, contrast=0.1),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406],
-                    std =[0.229, 0.224, 0.225]),
-    ])
+
+def _normalize_tensor(tensor: torch.Tensor) -> torch.Tensor:
+    return TF.normalize(tensor, mean=_NORMALIZE_MEAN, std=_NORMALIZE_STD)
+
+
+def _deterministic_five_crop(image: Image.Image, crop_size: int = IMG_SIZE, upscale_pad: int = 32):
+    """
+    Resize to (crop_size + upscale_pad) on each side, then take the classic
+    fixed 5 crops: center + 4 corners. Every crop position is fixed — no
+    randomness — so the same input image always yields the same 5 tensors.
+
+    Returns: list[torch.Tensor], each already normalized, shape (3, crop_size, crop_size)
+    """
+    resized = T.functional.resize(image, (crop_size + upscale_pad, crop_size + upscale_pad))
+    # T.functional.five_crop returns (top-left, top-right, bottom-left, bottom-right, center)
+    crops = T.functional.five_crop(resized, crop_size)
+
+    tensors = []
+    for crop in crops:
+        t = T.functional.to_tensor(crop)
+        t = _normalize_tensor(t)
+        tensors.append(t)
+    return tensors
 
 
 # =============================================================================
@@ -63,14 +128,134 @@ def _predict_single(model, tensor, device):
 
 
 def _predict_with_tta(model, image: Image.Image, device, tta_steps: int = 5):
-    base_tf = _base_transform()
-    tta_tf  = _tta_transform()
+    """
+    Deterministic TTA: averages softmax probabilities over the plain resize
+    plus up to 5 fixed crops (center + 4 corners). No randomness anywhere,
+    so the same image always produces the exact same result.
 
+    tta_steps controls how many of the fixed crops are used in addition to
+    the base pass (capped at 5, the number of available deterministic crops).
+    tta_steps <= 1 → base pass only (no cropping).
+    """
+    base_tf = _base_transform()
     all_probs = [_predict_single(model, base_tf(image), device)]
-    for _ in range(tta_steps - 1):
-        all_probs.append(_predict_single(model, tta_tf(image), device))
+
+    if tta_steps > 1:
+        n_crops = min(tta_steps - 1, 5)
+        crop_tensors = _deterministic_five_crop(image)[:n_crops]
+        for t in crop_tensors:
+            all_probs.append(_predict_single(model, t, device))
 
     return np.mean(all_probs, axis=0)
+
+
+# =============================================================================
+#  OOD detection — Mahalanobis distance (ported from notebook cells OOD-A/B/C)
+# =============================================================================
+
+class FeatureExtractor(nn.Module):
+    """
+    Extracts the 1280-dim backbone embedding from GlaucomaEfficientNetB0.
+    Stops before the classifier head — identical to the notebook's
+    FeatureExtractor, used to fit / score the Mahalanobis distance.
+    """
+    def __init__(self, glaucoma_model):
+        super().__init__()
+        self.backbone = glaucoma_model.backbone   # timm EffNet-B0, pool included
+
+    def forward(self, x):
+        return self.backbone(x)   # (B, 1280) — already pooled by timm
+
+
+# Module-level cache so we only read + parse ood_config.json once per process.
+_OOD_STATE = {
+    "loaded":      False,
+    "enabled":     False,
+    "threshold":   None,
+    "class_means": None,   # {int cls_idx: np.array(1280,)}
+    "cov_inv":     None,   # np.array(1280, 1280)
+}
+
+
+def _resolve_ood_config_path():
+    path = current_app.config.get("OOD_CONFIG_PATH")
+    if path and os.path.exists(path):
+        return path
+
+    # Fallback: look for glaucoma_ood_config.json next to MODEL_PATH, same
+    # folder the notebook exports it into alongside the .pth checkpoint.
+    # NOTE: app.py now hardcodes OOD_CONFIG_PATH directly, so this fallback
+    # should rarely trigger — kept here only as a safety net.
+    model_path = current_app.config.get("MODEL_PATH")
+    if model_path:
+        candidate = os.path.join(os.path.dirname(model_path), "glaucoma_ood_config.json")
+        if os.path.exists(candidate):
+            return candidate
+
+    return None
+
+
+def _load_ood_config():
+    """Lazily loads + caches the Mahalanobis OOD config (class means +
+    shared covariance inverse + threshold) exported by the notebook."""
+    if _OOD_STATE["loaded"]:
+        return _OOD_STATE
+
+    _OOD_STATE["loaded"] = True  # mark attempted regardless of outcome
+
+    path = _resolve_ood_config_path()
+    if not path:
+        print("[OOD] ood_config.json not found — Mahalanobis OOD check disabled "
+              "(low-confidence rule still applies). Set app.config['OOD_CONFIG_PATH'].")
+        return _OOD_STATE
+
+    try:
+        with open(path, "r") as f:
+            cfg = json.load(f)
+
+        _OOD_STATE["threshold"]   = float(cfg["threshold"])
+        _OOD_STATE["class_means"] = {
+            int(k): np.array(v, dtype=np.float32) for k, v in cfg["class_means"].items()
+        }
+        _OOD_STATE["cov_inv"]  = np.array(cfg["cov_inv"], dtype=np.float32)
+        _OOD_STATE["enabled"]  = True
+        print(f"[OOD] Loaded config from {path} (threshold={_OOD_STATE['threshold']:.4f})")
+    except Exception:
+        traceback.print_exc()
+        print(f"[OOD] Failed to load/parse {path} — Mahalanobis OOD check disabled.")
+
+    return _OOD_STATE
+
+
+def _get_feature_extractor(model, device):
+    """Builds (and caches on the app config) the FeatureExtractor wrapping
+    the already-loaded classification model's backbone."""
+    fx = current_app.config.get("_OOD_FEATURE_EXTRACTOR")
+    if fx is None:
+        fx = FeatureExtractor(model).to(device)
+        fx.eval()
+        current_app.config["_OOD_FEATURE_EXTRACTOR"] = fx
+    return fx
+
+
+def _compute_ood_score(feature_extractor, tensor, device, ood_state):
+    """
+    tensor: (1, 3, H, W), NOT yet on device.
+    Returns (min_mahalanobis_distance, is_ood_bool).
+    """
+    with torch.no_grad():
+        emb = feature_extractor(tensor.to(device)).cpu().numpy()[0]  # (1280,)
+
+    x = emb[np.newaxis, :]
+    distances = []
+    for cls_idx, mean in ood_state["class_means"].items():
+        diff = x - mean
+        d = np.einsum('bi,ij,bj->b', diff, ood_state["cov_inv"], diff)[0]
+        distances.append(d)
+
+    min_dist = float(np.min(distances))
+    is_ood   = min_dist > ood_state["threshold"]
+    return min_dist, is_ood
 
 
 # =============================================================================
@@ -232,6 +417,19 @@ RISK_MAP = {
             "and protect your eyes from UV exposure."
         ),
     },
+    # Used both for genuine out-of-distribution images (flagged by the
+    # Mahalanobis check) AND for low-confidence predictions (<70%).
+    "ood": {
+        "level":          "Uncertain",
+        "color":          "#6b7280",
+        "recommendation": (
+            "This image could not be reliably classified as advanced, early, or "
+            "normal glaucoma. This can happen with poor image quality, an unusual "
+            "or non-standard fundus photo, or an image that isn't a fundus "
+            "photograph at all. Please re-capture a clear, well-centered fundus "
+            "image, or have it reviewed manually by an ophthalmologist."
+        ),
+    },
 }
 
 
@@ -264,26 +462,54 @@ def predict():
     include_gradcam = request.form.get("gradcam", "true").lower() != "false"
 
     try:
-        # ── Step 1: TTA classification ────────────────────────────────────────
+        # ── Step 1: Deterministic TTA classification ──────────────────────────
         probs      = _predict_with_tta(model, image, device, tta_steps)
         class_idx  = int(np.argmax(probs))
         confidence = float(probs[class_idx])
         class_name = class_names[class_idx]
-        risk       = RISK_MAP.get(class_name, RISK_MAP["normal"]).copy()
 
-        if confidence < 0.60:
-            risk["recommendation"] = (
-                f"[Low confidence — {confidence*100:.1f}%] "
-                + risk["recommendation"]
-                + " Consider re-imaging with better quality."
+        # ── Step 2: OOD check — Mahalanobis distance on clean (non-TTA) embedding ─
+        ood_state = _load_ood_config()
+
+        mahal_distance      = None
+        ood_threshold        = ood_state.get("threshold")
+        is_ood_mahalanobis  = False
+
+        if ood_state.get("enabled"):
+            feature_extractor = _get_feature_extractor(model, device)
+            clean_tensor      = _base_transform()(image).unsqueeze(0)
+            mahal_distance, is_ood_mahalanobis = _compute_ood_score(
+                feature_extractor, clean_tensor, device, ood_state
             )
 
-        # ── Step 2: Grad-CAM (same predicted class as target) ─────────────────
+        # Rule requested: confidence below 70% is treated exactly like OOD.
+        is_low_confidence = confidence < CONFIDENCE_THRESHOLD
+        is_ood            = is_ood_mahalanobis or is_low_confidence
+
+        if is_ood_mahalanobis and is_low_confidence:
+            ood_reason = "mahalanobis_and_low_confidence"
+        elif is_ood_mahalanobis:
+            ood_reason = "mahalanobis_distance"
+        elif is_low_confidence:
+            ood_reason = "low_confidence"
+        else:
+            ood_reason = None
+
+        if is_ood:
+            display_class_name = "ood"
+            display_class_idx  = -1
+            risk = RISK_MAP["ood"].copy()
+        else:
+            display_class_name = class_name
+            display_class_idx  = class_idx
+            risk = RISK_MAP.get(class_name, RISK_MAP["normal"]).copy()
+
+        # ── Step 3: Grad-CAM (still shown for transparency, even if OOD) ──────
         gradcam_result = None
         if include_gradcam:
             gradcam_result = _run_gradcam(model, image, device, pred_idx=class_idx)
 
-        # ── Step 3: Thumbnail for frontend preview ────────────────────────────
+        # ── Step 4: Thumbnail for frontend preview ────────────────────────────
         thumb = image.copy()
         thumb.thumbnail((256, 256))
         buf = io.BytesIO()
@@ -292,13 +518,22 @@ def predict():
 
         return jsonify({
             "prediction": {
-                "class_index":   class_idx,
-                "class_name":    class_name,
-                "confidence":    round(confidence * 100, 2),
+                "class_index":    display_class_idx,
+                "class_name":     display_class_name,   # "ood" if flagged, else real class
+                "raw_class_name": class_name,            # what the classifier head predicted, regardless of OOD
+                "confidence":     round(confidence * 100, 2),
                 "probabilities": {
                     class_names[i]: round(float(probs[i]) * 100, 2)
                     for i in range(len(class_names))
                 },
+            },
+            "ood": {
+                "is_ood":                is_ood,
+                "reason":                ood_reason,
+                "mahalanobis_distance":  round(mahal_distance, 4) if mahal_distance is not None else None,
+                "mahalanobis_threshold": round(ood_threshold, 4) if ood_threshold is not None else None,
+                "confidence_threshold":  CONFIDENCE_THRESHOLD * 100,
+                "mahalanobis_check_enabled": ood_state.get("enabled", False),
             },
             "risk":      risk,
             "thumbnail": f"data:image/jpeg;base64,{thumb_b64}",

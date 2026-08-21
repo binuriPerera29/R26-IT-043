@@ -16,3 +16,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Environment variables
+.env
+backend/.env
+
+# Temporary backup folders
+backend_old/
+frontend_old/

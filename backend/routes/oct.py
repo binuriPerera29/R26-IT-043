@@ -1,43 +1,67 @@
 """
-oct.py — OCT Disease Classification Route
+oct.py — OCT Disease Classification Route  (PyTorch + OOD Detection)
 
-Notebook cells reproduced exactly:
-  Cell 1  : CLAHE only at dataset-prep time — NOT at inference
-  Cell 2  : CLASS_LABELS, IMG_SIZE=224, MEAN, STD, DEVICE
-  Cell 4  : build_efficientnet_b0() — efficientnet_b0, classifier[1]=Linear(1280,4), dropout=0.4
-  Cell 9  : predict() — Image.open.convert('RGB') → Resize(224) → ToTensor → Normalize → torch.no_grad
-  Cell 10 : GradCAM(model, model.features[-1]), overlay_heatmap(alpha=0.45, COLORMAP_JET)
-            preprocess_image: pil.resize(224) → transform → tensor.requires_grad_(True)
-            display_np = np.array(pil_image.resize((IMG_SIZE, IMG_SIZE)))
+Matches the .pth inference path from the notebook:
+  Cell 9-OOD-A : FeatureExtractor (EfficientNet backbone -> 1280-d embedding)
+  Cell 9-OOD-B : Mahalanobis distance — per-class means + shared (tied)
+                 covariance, threshold = MAX of validation-set distances
+  Cell 9-OOD-C : Exports consumed here — labels.json / ood_config.json /
+                 best_efficientnet_b0_oct.pth
+  Cell 9       : Single-image prediction with OOD gating
+  Cell 10      : Grad-CAM (true backward-hook version) + OOD
 
-Notebook saves checkpoint as plain state_dict:
-  torch.save(model.state_dict(), best_model_path)   ← Cell 6
-So load_state_dict receives it directly — no wrapper key.
+Runs on torch / torchvision directly against the .pth checkpoint.
+No ONNX involved anywhere in this file.
+
+Additionally (not in notebook): predictions with confidence below
+CONFIDENCE_THRESHOLD are flagged and treated with the same caution as
+OOD detections — separate status field, merged into the same warning.
+
+Required packages: torch, torchvision, numpy, opencv-python, pillow, flask
 """
 
 from flask import Blueprint, request, jsonify
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import transforms, models
-from PIL import Image
+from torchvision import models, transforms
 import numpy as np
+from PIL import Image
 import cv2
 import base64
 import os
+import json
+import threading
 from io import BytesIO
 
 oct_bp = Blueprint("oct", __name__)
 
-# ── Cell 2: CONFIG ────────────────────────────────────────────────────────
-CLASS_LABELS = ["CNV", "DME", "DRUSEN", "NORMAL"]   # matches train_dataset.class_to_idx order
-IMG_SIZE     = 224
-MEAN         = [0.485, 0.456, 0.406]                 # ImageNet stats — EfficientNet pretrained
-STD          = [0.229, 0.224, 0.225]
-DEVICE       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_PATH   = os.environ.get("MODEL_PATH_OCT", "best_efficientnet_b0_oct.pth")
+# ── CONFIG ─────────────────────────────────────────────────────────────────
+IMG_SIZE = 224
+MEAN     = [0.485, 0.456, 0.406]   # ImageNet stats — EfficientNet pretrained
+STD      = [0.229, 0.224, 0.225]
+DROPOUT  = 0.4                     # must match build_efficientnet_b0 in the notebook
 
-# ── Medical explanation database (added for web — not in notebook) ─────────
+CONFIDENCE_THRESHOLD = 70.0        # % — below this, flag like an OOD case
+
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _resolve(env_var: str, default_filename: str) -> str:
+    path = os.environ.get(env_var, default_filename)
+    if not os.path.isabs(path):
+        path = os.path.join(_backend_dir, path)
+    return path
+
+
+MODEL_PTH_PATH       = _resolve("MODEL_PATH_OCT_PTH", "models/best_efficientnet_b0_oct.pth")
+LABELS_JSON_PATH     = _resolve("LABELS_JSON_PATH_OCT", "models/oct_labels.json")
+OOD_CONFIG_JSON_PATH = _resolve("OOD_CONFIG_JSON_PATH_OCT", "models/oct_ood_config.json")
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+# ── Medical explanation database (unchanged — not in notebook) ─────────────
 MEDICAL_EXPLANATIONS = {
     "CNV": {
         "full_name": "Choroidal Neovascularization",
@@ -189,21 +213,11 @@ MEDICAL_EXPLANATIONS = {
 }
 
 
-# ── Cell 4 & Cell 9 & Cell 10: MODEL ARCHITECTURE ────────────────────────
-# Notebook Cell 4 builds with pretrained weights, but saves only state_dict.
-# Cell 9 & 10 reload with weights=None then load_state_dict — we do the same.
-def build_efficientnet_b0(num_classes: int = 4, dropout: float = 0.4) -> nn.Module:
-    """
-    Exact match of notebook Cell 4 / Cell 9 / Cell 10:
-        model = models.efficientnet_b0(weights=None)
-        in_features = model.classifier[1].in_features   # 1280
-        model.classifier = nn.Sequential(
-            nn.Dropout(p=dropout, inplace=True),
-            nn.Linear(in_features, num_classes),
-        )
-    """
+# ── Model definition (Cell 4 / Cell 9 build_efficientnet_b0) ───────────────
+def build_efficientnet_b0(num_classes: int, dropout: float = DROPOUT) -> nn.Module:
+    """Same head shape used at train time — weights=None since we load our own state_dict."""
     model = models.efficientnet_b0(weights=None)
-    in_features = model.classifier[1].in_features   # 1280 for EfficientNet-B0
+    in_features = model.classifier[1].in_features
     model.classifier = nn.Sequential(
         nn.Dropout(p=dropout, inplace=True),
         nn.Linear(in_features, num_classes),
@@ -211,60 +225,22 @@ def build_efficientnet_b0(num_classes: int = 4, dropout: float = 0.4) -> nn.Modu
     return model
 
 
-# ── Singleton loader ──────────────────────────────────────────────────────
-_model = None
+# ── Cell 9-OOD-A: FeatureExtractor (1280-d embedding, pre-classifier) ─────
+class FeatureExtractor(nn.Module):
+    def __init__(self, efficientnet):
+        super().__init__()
+        self.features = efficientnet.features
+        self.avgpool  = efficientnet.avgpool   # AdaptiveAvgPool2d(1)
 
-def get_model() -> nn.Module:
-    global _model
-    if _model is None:
-        model_path = MODEL_PATH
-        if not os.path.isabs(model_path):
-            # resolve relative to backend/ directory
-            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            model_path  = os.path.join(backend_dir, model_path)
-
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"Model not found: {model_path}\n"
-                f"Place your .pth file in backend/ and set MODEL_PATH in .env"
-            )
-
-        _model = build_efficientnet_b0(num_classes=len(CLASS_LABELS))
-
-        # Notebook Cell 6 saves: torch.save(model.state_dict(), path)
-        # So the checkpoint IS the state_dict directly — no wrapper key.
-        # We also handle wrapped checkpoints (model_state_dict key) just in case.
-        state = torch.load(model_path, map_location=DEVICE, weights_only=False)
-        if isinstance(state, dict) and "model_state_dict" in state:
-            state = state["model_state_dict"]
-
-        _model.load_state_dict(state)
-        _model.to(DEVICE)
-        _model.eval()
-        print(f"[INFO] EfficientNet-B0 loaded → {model_path}  (device: {DEVICE})")
-    return _model
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        return torch.flatten(x, 1)             # (B, 1280)
 
 
-# ── Cell 9 & Cell 10: INFERENCE TRANSFORM ────────────────────────────────
-# Notebook val_transform (Cell 3) = inference transform used in Cell 9 & Cell 10:
-#   Resize(224,224) → ToTensor → Normalize(MEAN, STD)
-# NO CLAHE at inference. CLAHE was dataset-prep only (Cell 1 save_with_clahe).
-def get_val_transform():
-    return transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=MEAN, std=STD),
-    ])
-
-
-# ── Cell 10: GRAD-CAM ────────────────────────────────────────────────────
+# ── Cell 10: true backward-hook Grad-CAM ────────────────────────────────
 class GradCAM:
-    """
-    Exact match of notebook Cell 10 GradCAM class.
-    Target layer : model.features[-1]  (last MBConv block, ~7×7 spatial map)
-    """
-
-    def __init__(self, model: nn.Module, target_layer: nn.Module):
+    def __init__(self, model, target_layer):
         self.model        = model
         self.target_layer = target_layer
         self.gradients    = None
@@ -272,85 +248,148 @@ class GradCAM:
         self._fwd_hook = target_layer.register_forward_hook(self._save_activation)
         self._bwd_hook = target_layer.register_full_backward_hook(self._save_gradient)
 
-    def _save_activation(self, module, input, output):
+    def _save_activation(self, module, inp, output):
         self.activations = output.detach()
 
     def _save_gradient(self, module, grad_input, grad_output):
         self.gradients = grad_output[0].detach()
 
-    def generate(self, input_tensor: torch.Tensor, class_idx: int = None):
-        """
-        Notebook Cell 10 generate() logic — line for line:
-          1. zero_grad
-          2. forward → softmax → pred_idx
-          3. backward on target class score
-          4. weights = gradients[0].mean(dim=(1,2))
-          5. cam = zeros on activations.device   ← key device fix from notebook
-          6. weighted sum of activation maps
-          7. ReLU → interpolate → cpu → normalise [0,1]
-        """
+    def generate(self, input_tensor, class_idx=None):
         self.model.zero_grad()
-
         output   = self.model(input_tensor)
         probs    = torch.softmax(output, dim=1)[0]
         pred_idx = probs.argmax().item()
-
         if class_idx is None:
             class_idx = pred_idx
-
-        # Backward on the target class score
         output[0, class_idx].backward()
 
-        # α^c_k = Global Average Pool of gradients  (shape: C,)
-        weights = self.gradients[0].mean(dim=(1, 2))
-
-        # Weighted sum — initialised ON THE SAME DEVICE as activations
-        # (this is the explicit cuda/cpu fix noted in notebook Cell 10)
+        weights = self.gradients[0].mean(dim=(1, 2))          # (C,)
         cam = torch.zeros(
-            self.activations.shape[2:],
-            dtype=torch.float32,
-            device=self.activations.device,
+            self.activations.shape[2:], dtype=torch.float32, device=self.activations.device
         )
         for i, w in enumerate(weights):
             cam += w * self.activations[0, i]
-
-        # ReLU: keep only positive influences
         cam = F.relu(cam)
-
-        # Upsample to input resolution
         cam = F.interpolate(
             cam.unsqueeze(0).unsqueeze(0),
             size=(input_tensor.shape[2], input_tensor.shape[3]),
-            mode="bilinear",
-            align_corners=False,
+            mode="bilinear", align_corners=False,
         )
-
-        # Move to CPU after all GPU ops (notebook: cam = cam.squeeze().cpu().numpy())
         cam = cam.squeeze().cpu().numpy()
-
-        # Normalise to [0, 1]
         if cam.max() != cam.min():
             cam = (cam - cam.min()) / (cam.max() - cam.min())
         else:
             cam = np.zeros_like(cam)
-
-        return cam, pred_idx, probs.cpu().detach().numpy()
+        return cam, pred_idx, probs.detach().cpu().numpy()
 
     def remove_hooks(self):
         self._fwd_hook.remove()
         self._bwd_hook.remove()
 
 
-# ── Cell 10: OVERLAY HEATMAP ─────────────────────────────────────────────
+# ── Singleton runtime state ─────────────────────────────────────────────────
+_lock              = threading.Lock()
+_model             = None   # loaded EfficientNet-B0, weights from .pth
+_feature_extractor = None   # wraps _model.features + _model.avgpool
+_class_labels      = None
+_ood_threshold      = None
+_ood_class_means    = None  # dict[int] -> (1280,) np.float32
+_ood_cov_inv        = None  # (1280, 1280) np.float32
+
+
+def get_runtime():
+    """
+    Lazily loads (once):
+      - the EfficientNet-B0 model, weights from the .pth checkpoint
+      - a FeatureExtractor sharing those weights (for OOD embeddings)
+      - class labels (labels.json)
+      - Mahalanobis OOD config (ood_config.json)
+    """
+    global _model, _feature_extractor, _class_labels
+    global _ood_threshold, _ood_class_means, _ood_cov_inv
+
+    if _model is not None:
+        return
+
+    with _lock:
+        if _model is not None:
+            return
+
+        for label, path in (
+            ("model.pth", MODEL_PTH_PATH),
+            ("labels.json", LABELS_JSON_PATH),
+            ("ood_config.json", OOD_CONFIG_JSON_PATH),
+        ):
+            if not os.path.exists(path):
+                raise FileNotFoundError(
+                    f"Required file not found: {path}\n"
+                    f"Place your {label} in backend/ and set the matching *_PATH env var."
+                )
+
+        # ── labels.json  {"0": "CNV", "1": "DME", ...} ──
+        with open(LABELS_JSON_PATH, "r") as f:
+            labels_dict = json.load(f)
+        _class_labels = [labels_dict[str(i)] for i in range(len(labels_dict))]
+
+        # ── ood_config.json (Cell 9-OOD-B / 9-OOD-C) ──
+        with open(OOD_CONFIG_JSON_PATH, "r") as f:
+            ood_cfg = json.load(f)
+        _ood_threshold = float(ood_cfg["threshold"])
+        _ood_class_means = {int(k): np.array(v, dtype=np.float32) for k, v in ood_cfg["class_means"].items()}
+        _ood_cov_inv = np.array(ood_cfg["cov_inv"], dtype=np.float32)
+
+        # ── model + feature extractor ──
+        model = build_efficientnet_b0(len(_class_labels))
+        model.load_state_dict(torch.load(MODEL_PTH_PATH, map_location=DEVICE))
+        model.to(DEVICE)
+        model.eval()
+        _model = model
+
+        _feature_extractor = FeatureExtractor(model).to(DEVICE)
+        _feature_extractor.eval()
+
+        print(f"[INFO] PyTorch runtime ready — device={DEVICE}  classes={_class_labels}  "
+              f"ood_threshold={_ood_threshold:.4f}  confidence_threshold={CONFIDENCE_THRESHOLD}")
+
+
+# ── PREPROCESSING (matches notebook val_transform exactly) ─────────────────
+_transform = transforms.Compose([
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=MEAN, std=STD),
+])
+
+
+def preprocess(pil_image: Image.Image):
+    """
+    Returns:
+        tensor      : (1, 3, 224, 224) float32, on DEVICE — model input
+        display_np  : (224, 224, 3) uint8 RGB — resized original, for display/overlay
+    """
+    tensor = _transform(pil_image).unsqueeze(0).to(DEVICE)
+    display_np = np.array(pil_image.resize((IMG_SIZE, IMG_SIZE))).astype(np.uint8)
+    return tensor, display_np
+
+
+# ── Cell 9-OOD-B: Mahalanobis OOD scorer ────────────────────────────────────
+def compute_ood_score(embedding: np.ndarray):
+    """
+    embedding : (1280,) numpy array
+    Returns (min_mahal_distance: float, is_ood: bool)
+    """
+    x = embedding[np.newaxis, :]
+    distances = []
+    for cls_idx in range(len(_class_labels)):
+        diff = x - _ood_class_means[cls_idx]
+        d = np.einsum("bi,ij,bj->b", diff, _ood_cov_inv, diff)[0]
+        distances.append(d)
+    min_dist = float(np.min(distances))
+    return min_dist, min_dist > _ood_threshold
+
+
+# ── Cell 10: overlay heatmap (unchanged math) ───────────────────────────────
 def overlay_heatmap(image_np: np.ndarray, cam: np.ndarray,
-                    alpha: float = 0.45, colormap=cv2.COLORMAP_JET):
-    """
-    Exact match of notebook Cell 10 overlay_heatmap():
-        heatmap_bgr = cv2.applyColorMap(np.uint8(255 * cam), colormap)
-        heatmap_rgb = cv2.cvtColor(heatmap_bgr, cv2.COLOR_BGR2RGB)
-        superimposed = cv2.addWeighted(image_np, 1 - alpha, heatmap_rgb, alpha, 0)
-    alpha=0.45, colormap=COLORMAP_JET — same defaults as notebook.
-    """
+                     alpha: float = 0.45, colormap=cv2.COLORMAP_JET):
     heatmap_bgr = cv2.applyColorMap(np.uint8(255 * cam), colormap)
     heatmap_rgb = cv2.cvtColor(heatmap_bgr, cv2.COLOR_BGR2RGB)
 
@@ -372,7 +411,7 @@ def np_to_b64(arr: np.ndarray) -> str:
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
-# ── PREDICT ENDPOINT (Cell 9 + Cell 10 combined) ─────────────────────────
+# ── PREDICT ENDPOINT ─────────────────────────────────────────────────────
 @oct_bp.route("/predict", methods=["POST"])
 def predict():
     if "file" not in request.files:
@@ -382,63 +421,102 @@ def predict():
         return jsonify({"error": "Empty filename"}), 400
 
     try:
-        model = get_model()
+        get_runtime()
     except FileNotFoundError as e:
         return jsonify({"error": str(e)}), 503
 
     try:
-        # ── Cell 9 & Cell 10: Image.open(path).convert('RGB') ──
         pil_image = Image.open(file.stream).convert("RGB")
+        tensor, display_np = preprocess(pil_image)
 
-        # ── Cell 10: preprocess_image() ──
-        #   display_np = np.array(pil_image.resize((IMG_SIZE, IMG_SIZE)))
-        #   tensor = transform(pil_image).unsqueeze(0).to(DEVICE)
-        #   tensor.requires_grad_(True)
-        transform  = get_val_transform()
-        display_np = np.array(pil_image.resize((IMG_SIZE, IMG_SIZE)))  # uint8 RGB for display
-        tensor     = transform(pil_image).unsqueeze(0).to(DEVICE)
-        tensor.requires_grad_(True)   # required for backward through the graph
+        # Everything below touches shared state on _model (hooks + backward),
+        # so the whole inference step — OOD embedding included — is serialized
+        # to avoid two requests' Grad-CAM hooks clobbering each other.
+        with _lock:
+            with torch.no_grad():
+                embedding = _feature_extractor(tensor).cpu().numpy()[0]  # (1280,)
+            ood_score, is_ood = compute_ood_score(embedding)
 
-        # ── Cell 10: GradCAM on model.features[-1] ──
-        grad_cam             = GradCAM(model, target_layer=model.features[-1])
-        cam, pred_idx, probs = grad_cam.generate(tensor)
-        overlay, heatmap     = overlay_heatmap(display_np, cam, alpha=0.45)
-        grad_cam.remove_hooks()
+            grad_cam = GradCAM(_model, target_layer=_model.features[-1])
+            tensor_for_grad = tensor.clone().requires_grad_(True)
+            cam, pred_idx, probs = grad_cam.generate(tensor_for_grad)
+            grad_cam.remove_hooks()
 
-        # ── Cell 9: results ──
-        pred_label  = CLASS_LABELS[pred_idx]
-        confidence  = float(probs[pred_idx]) * 100
+        pred_label = _class_labels[pred_idx]
+        confidence = float(probs[pred_idx]) * 100
+        is_low_confidence = confidence < CONFIDENCE_THRESHOLD
 
-        # class probabilities dict  e.g. {"CNV": 97.3, "DME": 1.2, ...}
         class_probs = {
-            CLASS_LABELS[i]: round(float(probs[i]) * 100, 2)
-            for i in range(len(CLASS_LABELS))
+            _class_labels[i]: round(float(probs[i]) * 100, 2)
+            for i in range(len(_class_labels))
         }
+
+        overlay, heatmap = overlay_heatmap(display_np, cam, alpha=0.45)
 
         medical_info = MEDICAL_EXPLANATIONS[pred_label]
 
-        return jsonify({
-            "prediction":          pred_label,
-            "confidence":          round(confidence, 2),
+        response = {
+            "prediction": pred_label,
+            "confidence": round(confidence, 2),
             "class_probabilities": class_probs,
+            "ood_detection": {
+                "score": round(ood_score, 4),
+                "threshold": round(_ood_threshold, 4),
+                "is_ood": bool(is_ood),
+                "status": "Out-of-Distribution" if is_ood else "In-Distribution",
+            },
+            "confidence_check": {
+                "confidence": round(confidence, 2),
+                "threshold": CONFIDENCE_THRESHOLD,
+                "is_low_confidence": bool(is_low_confidence),
+                "status": "Low Confidence" if is_low_confidence else "Confident",
+            },
             "images": {
-                "original": np_to_b64(display_np),   # resized original
-                "heatmap":  np_to_b64(heatmap),       # JET colourmap heatmap
-                "overlay":  np_to_b64(overlay),       # blended overlay (alpha=0.45)
+                "original": np_to_b64(display_np),
+                "heatmap": np_to_b64(heatmap),
+                "overlay": np_to_b64(overlay),
             },
             "medical_explanation": {
-                "full_name":              medical_info["full_name"],
-                "severity":               medical_info["severity"],
-                "severity_color":         medical_info["severity_color"],
-                "description":            medical_info["description"],
-                "oct_findings":           medical_info["oct_findings"],
+                "full_name": medical_info["full_name"],
+                "severity": medical_info["severity"],
+                "severity_color": medical_info["severity_color"],
+                "description": medical_info["description"],
+                "oct_findings": medical_info["oct_findings"],
                 "gradcam_interpretation": medical_info["gradcam_interpretation"],
-                "causes":                 medical_info["causes"],
-                "treatment":              medical_info["treatment"],
-                "urgency":                medical_info["urgency"],
-                "prognosis":              medical_info["prognosis"],
+                "causes": medical_info["causes"],
+                "treatment": medical_info["treatment"],
+                "urgency": medical_info["urgency"],
+                "prognosis": medical_info["prognosis"],
             },
-        })
+        }
+
+        # ── Unified caution flag: OOD and low-confidence get the same treatment ──
+        needs_caution = is_ood or is_low_confidence
+        response["needs_caution"] = bool(needs_caution)
+
+        if is_ood and is_low_confidence:
+            response["warning"] = (
+                "This prediction is both out-of-distribution and low-confidence "
+                f"({confidence:.1f}% < {CONFIDENCE_THRESHOLD:.0f}%). Treat it with "
+                "significant caution — it may not be a genuine OCT scan, may show "
+                "pathology outside the four trained classes, or the model may simply "
+                "be uncertain about this image."
+            )
+        elif is_ood:
+            response["warning"] = (
+                "This image's feature embedding falls outside the model's training "
+                "distribution (Mahalanobis distance exceeds the calibrated threshold). "
+                "Treat this prediction with caution — it may not be a genuine OCT scan "
+                "or may show pathology outside the four trained classes."
+            )
+        elif is_low_confidence:
+            response["warning"] = (
+                f"Prediction confidence ({confidence:.1f}%) is below the "
+                f"{CONFIDENCE_THRESHOLD:.0f}% threshold. Treat this prediction with "
+                "caution — the model is not confident in this classification."
+            )
+
+        return jsonify(response)
 
     except Exception as exc:
         import traceback

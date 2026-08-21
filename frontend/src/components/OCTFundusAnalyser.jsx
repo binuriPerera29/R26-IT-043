@@ -6,7 +6,7 @@
 import { useState, useRef, useCallback } from "react";
 import { predictOCT } from "../services/api_oct.js";
 
-// ── Class metadata details ──────────────────────────────────────────────────────────
+// ── Class metadata ──────────────────────────────────────────────────────────
 const CLASS_META = {
   CNV: {
     color: "text-red-500",
@@ -52,7 +52,7 @@ const CLASS_META = {
 
 const CLASS_ORDER = ["CNV", "DME", "DRUSEN", "NORMAL"];
 
-// ── Icons details OCT  Details───────────────────────────────────────────────────────────────────
+// ── Icons ───────────────────────────────────────────────────────────────────
 function EyeIcon({ size = 18, className = "" }) {
   return (
     <svg
@@ -91,7 +91,7 @@ function UploadIcon() {
   );
 }
 
-// ── ProbabilityBarn ──────────────────────────────────────────────────────────
+// ── ProbabilityBar ──────────────────────────────────────────────────────────
 function ProbabilityBar({ cls, value, isTop }) {
   const meta = CLASS_META[cls];
   return (

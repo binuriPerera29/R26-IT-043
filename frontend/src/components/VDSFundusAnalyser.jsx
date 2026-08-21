@@ -1,9 +1,8 @@
 // frontend/src/components/VDSFundusAnalyser.jsx
 // Cataract VDS Analyser — Light theme, production-grade UI
-//cataract Function
 
 import { useState, useRef, useEffect } from "react";
-import { analyzeVDS } from "../services/api_cataract";
+import { analyzeVDS } from "../services/api";
 
 /* ── Grade config ─────────────────────────────────── */
 const GRADE_CONFIG = {
@@ -303,60 +302,24 @@ export default function VDSFundusAnalyser() {
 
       <div className="min-h-screen dot-bg">
 
-        {/* ── Nav bar ── */}
-        {/* <nav style={{
-          background: "rgba(255,255,255,0.9)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid #e8edf3",
-          position: "sticky", top: 0, zIndex: 10
-        }}>
-          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px",
-            display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: "linear-gradient(135deg, #eef2ff, #e0e7ff)",
-                border: "1px solid #c7d2fe",
-                display: "flex", alignItems: "center", justifyContent: "center"
-              }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                  stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </div>
-              <span style={{ fontWeight: 600, fontSize: 14, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                Fundus VDS
-              </span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div className="status-dot" style={{ background: "#10b981" }} />
-              <span className="mono" style={{ fontSize: 10, color: "#10b981", letterSpacing: "0.1em" }}>
-                SYSTEM READY
-              </span>
-            </div>
-          </div>
-        </nav> */}
-
         {/* ── Body ── */}
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 64px" }}>
 
           {/* Page heading */}
           <div style={{ marginBottom: 32, animation: "fadeUp 0.5s ease both" }}>
-            {/* <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span> */}
+            <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span>
             <h1 style={{
               fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 600,
               color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1.2
             }}>
-              Cataract Analyser &{" "}
+              Visibility Degradation{" "}
               <span style={{
                 background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
-              }}>Severity Detection</span>
+              }}>Score Analyser</span>
             </h1>
             <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10, maxWidth: 460, lineHeight: 1.7 }}>
-              Upload an retinal image and get instant cataract insights.
+              Upload a retinal fundus photograph. Our model computes a composite VDS across 5 clinical signals to classify cataract severity.
             </p>
           </div>
 
@@ -494,7 +457,7 @@ export default function VDSFundusAnalyser() {
               )}
 
               {/* How it works */}
-              {/* {!result && !loading && (
+              {!result && !loading && (
                 <div className="card" style={{
                   padding: "18px 20px",
                   animation: "fadeUp 0.5s ease both", animationDelay: "0.1s"
@@ -518,7 +481,7 @@ export default function VDSFundusAnalyser() {
                     ))}
                   </div>
                 </div>
-              )} */}
+              )}
             </div>
 
             {/* ── RIGHT ── */}
@@ -576,7 +539,17 @@ export default function VDSFundusAnalyser() {
                       display: "flex", alignItems: "flex-start",
                       justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12
                     }}>
-                     
+                      {/* LEFT: VDS SCORE */}
+                      <div>
+                        <span className="accent-label" style={{ marginBottom: 6 }}>VDS Score</span>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                          <span className={`mono ${cfg.text}`}
+                            style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px" }}>
+                            <AnimatedNumber value={result.vds * 100} decimals={2} />
+                          </span>
+                          <span className="mono" style={{ fontSize: 18, color: "#94a3b8", fontWeight: 400 }}>%</span>
+                        </div>
+                      </div>
 
                       {/* RIGHT: PRIMARY CLASSIFICATION */}
                       <div style={{ textAlign: "right" }}>
@@ -592,20 +565,42 @@ export default function VDSFundusAnalyser() {
                             </span>
                           )}
                         </div>
-                        {/* {result.vds_source === "seeded" && (
+                        {result.vds_source === "seeded" && (
                           <span style={{ fontSize: 10, color: "#f59e0b", display: "block", marginTop: 4 }}>⚠ range-corrected</span>
-                        )} */}
+                        )}
                       </div>
+                    </div>
+
+                    {/* PILL BADGE */}
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "4px 10px", borderRadius: 99, border: "1px solid",
+                        fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"
+                      }} className={cfg.pill}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", display: "inline-block" }}
+                          className={cfg.dot} />
+                        {result.grade}
+                      </span>
+                    </div>
+
+                    {/* GAUGE */}
+                    <div className="gauge-track">
+                      <div
+                        className={`gauge-fill bg-gradient-to-r ${cfg.bar}`}
+                        style={{ width: `${result.vds * 100}%` }}
+                      />
                     </div>
                     <div className="mono" style={{
                       display: "flex", justifyContent: "space-between",
                       fontSize: 9, color: "#cbd5e1", marginTop: 6, letterSpacing: "0.08em"
                     }}>
+                      <span>0 · CLEAR</span><span>100 · SEVERE</span>
                     </div>
                   </div>
 
                   {/* Class probabilities */}
-                  {/* <div className="card" style={{ padding: "20px 24px" }}>
+                  <div className="card" style={{ padding: "20px 24px" }}>
                     <span className="accent-label" style={{ marginBottom: 16, display: "block" }}>
                       Class Probabilities
                     </span>
@@ -621,7 +616,7 @@ export default function VDSFundusAnalyser() {
                         );
                       })}
                     </div>
-                  </div> */}
+                  </div>
                 </div>
               )}
             </div>
