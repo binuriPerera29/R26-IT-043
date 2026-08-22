@@ -1,11 +1,24 @@
 """
 backend/routes/vds.py
-VDS (Visibility Degradation Score) API — v3 with GradCAM + Clinical Explanation
+VDS (Visibility Degradation Score) API — v4 with GradCAM + OOD + Clinical Explanation
 
 POST /api/vds/analyze
   Body : multipart/form-data  { image: <file> }
+  Query: ?gradcam=true|false   (default true)
   Returns: JSON with VDS score, class prediction, component scores,
-           GradCAM heatmap (base64), region activations, and clinical explanation
+           OOD (out-of-distribution) status, GradCAM heatmap (base64),
+           region activations, and clinical explanation.
+
+GET /api/vds/health
+  Returns model / OOD-config load status.
+
+Requires two files sitting next to each other in backend/:
+  - best_effb3_cataract_v2.pth   (trained EfficientNet-B3 weights)
+  - ood_config.json              (exported from notebook Cell OOD-C —
+                                   contains class_means, cov_inv, threshold)
+
+If ood_config.json is missing, the API still works — OOD fields are
+simply returned as null and a warning is logged once at startup.
 """
 
 from flask import Blueprint, request, jsonify
@@ -16,6 +29,7 @@ import torchvision.models as models
 import numpy as np
 import cv2
 import os
+import json
 import base64
 import hashlib
 import tempfile
@@ -28,8 +42,9 @@ vds_bp = Blueprint("vds", __name__)
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
-BASE_DIR   = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR / "best_effb3_cataract_v2.pth"
+BASE_DIR        = Path(__file__).resolve().parent.parent
+MODEL_PATH       = BASE_DIR / "models/best_effb3_cataract_v2.pth"
+OOD_CONFIG_PATH  = BASE_DIR / "models/ood_config.json"
 
 IMG_SIZE     = 350
 DEVICE       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -160,6 +175,119 @@ def _get_model() -> nn.Module:
 
 
 # ─────────────────────────────────────────────
+# OOD (OUT-OF-DISTRIBUTION) DETECTION
+# Mahalanobis distance over a 1536-d EfficientNet-B3 embedding.
+# Feature extractor is built from the SAME loaded .pth model
+# (features + avgpool, stops before the classifier head) —
+# no ONNX / no second model file needed.
+# ─────────────────────────────────────────────
+
+class _FeatureExtractor(nn.Module):
+    """Extracts the 1536-dim embedding from EfficientNet-B3 (pre-classifier)."""
+
+    def __init__(self, efficientnet: nn.Module):
+        super().__init__()
+        self.features = efficientnet.features
+        self.avgpool  = efficientnet.avgpool   # AdaptiveAvgPool2d(1)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        return torch.flatten(x, 1)   # (B, 1536)
+
+
+_feature_extractor = None
+_ood_cfg = None            # raw dict from ood_config.json
+_ood_class_means = None    # {class_idx: np.ndarray(1536,)}
+_ood_cov_inv = None        # np.ndarray(1536, 1536)
+_ood_threshold = None
+_ood_available = False
+
+
+def _get_feature_extractor() -> nn.Module:
+    global _feature_extractor
+    if _feature_extractor is None:
+        model = _get_model()
+        _feature_extractor = _FeatureExtractor(model).to(DEVICE)
+        _feature_extractor.eval()
+    return _feature_extractor
+
+
+def _load_ood_config():
+    """
+    Loads ood_config.json (produced by notebook Cell OOD-C):
+        {
+          "method": "mahalanobis",
+          "embed_dim": 1536,
+          "num_classes": 4,
+          "class_labels": [...],
+          "threshold": <float>,
+          "class_means": {"0": [...1536 floats...], ...},
+          "cov_inv": [[...1536x1536...]]
+        }
+    Sets module-level globals. Safe to call multiple times (idempotent).
+    If the file is missing or malformed, OOD detection is disabled and
+    is_ood / ood_score come back as None in every response.
+    """
+    global _ood_cfg, _ood_class_means, _ood_cov_inv, _ood_threshold, _ood_available
+
+    if _ood_available or _ood_cfg is not None:
+        return  # already attempted
+
+    if not OOD_CONFIG_PATH.exists():
+        print(f"[VDS][OOD] ood_config.json not found at {OOD_CONFIG_PATH} — "
+              f"OOD detection disabled.")
+        return
+
+    try:
+        with open(OOD_CONFIG_PATH, "r") as f:
+            cfg = json.load(f)
+
+        class_means = {
+            int(k): np.array(v, dtype=np.float32)
+            for k, v in cfg["class_means"].items()
+        }
+        cov_inv = np.array(cfg["cov_inv"], dtype=np.float32)
+
+        _ood_cfg = cfg
+        _ood_class_means = class_means
+        _ood_cov_inv = cov_inv
+        _ood_threshold = float(cfg["threshold"])
+        _ood_available = True
+        print(f"[VDS][OOD] Loaded ood_config.json  "
+              f"(embed_dim={cfg.get('embed_dim')}, threshold={_ood_threshold:.4f})")
+    except Exception as e:
+        print(f"[VDS][OOD] Failed to load ood_config.json: {e} — OOD detection disabled.")
+        _ood_cfg = None
+        _ood_available = False
+
+
+def _compute_ood_score(tensor: torch.Tensor):
+    """
+    tensor: normalized (1,3,H,W) torch tensor (same preprocessing as classifier).
+    Returns (ood_score: float|None, is_ood: bool|None, threshold: float|None).
+    """
+    _load_ood_config()
+    if not _ood_available:
+        return None, None, None
+
+    extractor = _get_feature_extractor()
+    with torch.no_grad():
+        embedding = extractor(tensor).cpu().numpy()  # (1, 1536)
+
+    x = embedding[0][np.newaxis, :]  # (1, 1536)
+    distances = []
+    for cls_idx in range(len(_ood_class_means)):
+        diff = x - _ood_class_means[cls_idx]
+        d = np.einsum("bi,ij,bj->b", diff, _ood_cov_inv, diff)[0]
+        distances.append(d)
+
+    min_dist = float(np.min(distances))
+    is_ood = bool(min_dist > _ood_threshold)
+    return round(min_dist, 4), is_ood, round(_ood_threshold, 4)
+
+
+# ─────────────────────────────────────────────
 # PREPROCESSING (CLAHE — same as training)
 # ─────────────────────────────────────────────
 
@@ -189,7 +317,7 @@ def _preprocess(img_path: str):
 
 
 # ─────────────────────────────────────────────
-# FEATURE EXTRACTORS
+# FEATURE EXTRACTORS (classical image-quality features)
 # ─────────────────────────────────────────────
 
 def _vessel_score(img_rgb: np.ndarray) -> float:
@@ -256,7 +384,6 @@ def _predict_severity(model: nn.Module, tensor: torch.Tensor):
 
 # ─────────────────────────────────────────────
 # VDS RANGE VALIDATION + SEEDED FALLBACK
-# (from notebook Cell 2)
 # ─────────────────────────────────────────────
 
 def _image_seed(img_path: str) -> int:
@@ -288,7 +415,7 @@ def _ensure_vds_in_range(vds: float, pred_class: str, img_path: str):
 
 
 # ─────────────────────────────────────────────
-# GRAD-CAM ENGINE (from notebook Cell 3)
+# GRAD-CAM ENGINE
 # ─────────────────────────────────────────────
 
 class _GradCAM:
@@ -375,7 +502,7 @@ def _generate_gradcam(model: nn.Module, img_path: str, pred_class: str):
 
 
 # ─────────────────────────────────────────────
-# REGION ANALYSER (from notebook Cell 3)
+# REGION ANALYSER
 # ─────────────────────────────────────────────
 
 def _analyse_regions(cam: np.ndarray) -> dict:
@@ -400,7 +527,7 @@ def _analyse_regions(cam: np.ndarray) -> dict:
 
 
 # ─────────────────────────────────────────────
-# CLINICAL EXPLANATION (from notebook Cell 3)
+# CLINICAL EXPLANATION
 # ─────────────────────────────────────────────
 
 def _generate_clinical_explanation(result: dict, region_acts: dict) -> dict:
@@ -495,12 +622,35 @@ def _generate_clinical_explanation(result: dict, region_acts: dict) -> dict:
         f"quadrants {asymmetry_note}"
     )
 
+    # ── OOD note (only added if OOD detection is available) ──
+    ood_score = result.get("ood_score")
+    is_ood    = result.get("is_ood")
+    if ood_score is not None:
+        if is_ood:
+            ood_note = (
+                f"This image's learned feature embedding lies at a Mahalanobis distance of "
+                f"{ood_score:.2f} from the nearest training-class centroid, exceeding the "
+                f"calibrated threshold of {result.get('ood_threshold'):.2f}. It is flagged as "
+                f"OUT-OF-DISTRIBUTION — the image may not resemble the fundus photographs the "
+                f"model was trained on (e.g. wrong modality, poor capture quality, or a non-fundus "
+                f"image), so the class prediction and VDS above should be treated with caution."
+            )
+        else:
+            ood_note = (
+                f"This image's feature embedding lies within the expected distribution "
+                f"(Mahalanobis distance {ood_score:.2f}, threshold {result.get('ood_threshold'):.2f}), "
+                f"supporting the reliability of the classification above."
+            )
+    else:
+        ood_note = "OOD detection unavailable (ood_config.json not loaded)."
+
     return {
         "summary":                summary,
         "optical_analysis":       optical_analysis,
         "anatomical_findings":    anatomical_findings,
         "score_breakdown":        score_breakdown,
         "heatmap_interpretation": heatmap_interpretation,
+        "ood_note":               ood_note,
         "clinical_note":          kb["clinical_note"],
         "recommendation":         kb["recommendation"],
     }
@@ -516,6 +666,9 @@ def compute_vds(img_path: str, include_gradcam: bool = True) -> dict:
 
     pred_class, severity_score, probs = _predict_severity(model, tensor)
 
+    # ── OOD detection (Mahalanobis distance on 1536-d embedding) ──
+    ood_score, is_ood, ood_threshold = _compute_ood_score(tensor)
+
     vessel_score    = float(np.clip(_vessel_score(img_rgb),    0, 1))
     sharpness_score = float(np.clip(_sharpness_score(img_rgb), 0, 1))
     contrast_score  = float(np.clip(_contrast_score(img_rgb),  0, 1))
@@ -530,7 +683,7 @@ def compute_vds(img_path: str, include_gradcam: bool = True) -> dict:
         0.0, 1.0
     ))
 
-    # ── Range validation + seeded fallback (as per notebook) ──
+    # ── Range validation + seeded fallback ──
     vds, vds_source = _ensure_vds_in_range(vds_raw, pred_class, img_path)
 
     if vds < 0.25:
@@ -554,6 +707,10 @@ def compute_vds(img_path: str, include_gradcam: bool = True) -> dict:
         "contrast_score":  round(contrast_score, 4),
         "entropy_score":   round(entropy_score, 4),
         "model_probs":     {k: round(v, 4) for k, v in probs.items()},
+        # OOD fields — None if ood_config.json wasn't found
+        "ood_score":       ood_score,
+        "ood_threshold":   ood_threshold,
+        "is_ood":          is_ood,
     }
 
     if include_gradcam:
@@ -561,10 +718,10 @@ def compute_vds(img_path: str, include_gradcam: bool = True) -> dict:
         region_acts = _analyse_regions(cam)
         explanation = _generate_clinical_explanation(result, region_acts)
 
-        result["gradcam_overlay"]   = overlay_b64
-        result["gradcam_heatmap"]   = heatmap_b64
+        result["gradcam_overlay"]    = overlay_b64
+        result["gradcam_heatmap"]    = heatmap_b64
         result["region_activations"] = region_acts
-        result["clinical"]          = explanation
+        result["clinical"]           = explanation
 
     return result
 
@@ -615,6 +772,13 @@ def analyze():
 def health():
     try:
         _get_model()
-        return jsonify({"status": "ok", "model": str(MODEL_PATH), "device": str(DEVICE)}), 200
+        _load_ood_config()
+        return jsonify({
+            "status":         "ok",
+            "model":          str(MODEL_PATH),
+            "device":         str(DEVICE),
+            "ood_available":  _ood_available,
+            "ood_config":     str(OOD_CONFIG_PATH) if _ood_available else None,
+        }), 200
     except FileNotFoundError as e:
         return jsonify({"status": "error", "detail": str(e)}), 500

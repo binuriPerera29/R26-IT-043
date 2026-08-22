@@ -1,18 +1,12 @@
-"""
-diabetic_retinopathy.py  —  Diabetic Retinopathy analysis endpoint
-POST /api/analyze   →  { label, confidence, probabilities, gradcam_b64, lesions, explanation }
-"""
-
-import io, base64, hashlib, os
+import io, base64, hashlib, os, json
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
 import cv2
 from PIL import Image
+from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from flask import Blueprint, request, jsonify
 
 dr_bp = Blueprint("diabetic_retinopathy", __name__)
@@ -23,6 +17,17 @@ MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+NUM_CLASSES = 5
+DROPOUT     = 0.3
+
+# Below this confidence, treat the prediction with the same distrust as OOD.
+LOW_CONFIDENCE_THRESHOLD = 50.0
+
+# Set True temporarily to print per-request debug info (logits, checkpoint
+# load report) to the server console. Turn off once classification is
+# confirmed correct.
+DEBUG_MODE = True
+
 CLASS_NAMES = {
     0: 'No DR',
     1: 'Mild DR',
@@ -32,7 +37,6 @@ CLASS_NAMES = {
 }
 
 SEVERITY_LABELS = ['NONE', 'MILD', 'MODERATE', 'SEVERE', 'PROLIFERATIVE']
-
 SEVERITY_COLORS = ['#00ff88', '#aaff00', '#ffaa00', '#ff6600', '#ff4444']
 
 # ─── Lesion variations (5 per grade — clinically plausible) ───────────────────
@@ -106,26 +110,29 @@ CLINICAL_TEMPLATES = {
     ],
 }
 
-# ─── Recommendation text per grade ────────────────────────────────────────────
 RECOMMENDATIONS = {
     0: "No treatment required at this time. Recommend annual dilated fundus examination to monitor for early changes. Maintain good glycaemic control and blood pressure management.",
     1: "Follow-up dilated eye examination recommended in 12 months. Optimize blood glucose (HbA1c <7%) and blood pressure (<130/80 mmHg). No retinal treatment needed at this stage.",
-    2: "Ophthalmology referral recommended within 3–6 months. Risk of progression to severe NPDR without adequate systemic control. Consider fundus photography and optical coherence tomography (OCT).",
+    2: "Ophthalmology referral recommended within 3-6 months. Risk of progression to severe NPDR without adequate systemic control. Consider fundus photography and optical coherence tomography (OCT).",
     3: "Urgent ophthalmology referral within 1 month. High risk of progression to PDR. Panretinal photocoagulation (PRP) may be indicated. Intensive glycaemic and BP management required.",
     4: "IMMEDIATE ophthalmology referral required. Laser photocoagulation or intravitreal anti-VEGF injections (ranibizumab, bevacizumab) are first-line treatments. Risk of vitreous haemorrhage and tractional retinal detachment is significant.",
 }
 
-# ─── Model definition (mirrors training notebook) ──────────────────────────────
+
+# ─── Model architecture (must match training notebook exactly) ───────────────
 class DRNet(nn.Module):
+    """
+    EfficientNetV2-S backbone -> AdaptiveAvgPool2d(1) -> custom head.
+    Must match the notebook's CELL 4 / CELL OOD-A definition exactly, or the
+    state_dict keys won't line up and predictions will be wrong (or, if keys
+    are close enough that strict loading doesn't error, silently wrong).
+    """
     def __init__(self, num_classes=5, dropout=0.3):
         super().__init__()
-        bb = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.IMAGENET1K_V1)
+        bb            = efficientnet_v2_s(weights=None)  # weights loaded from checkpoint
         self.features = bb.features
         self.pool     = nn.AdaptiveAvgPool2d(1)
-        in_feat       = bb.classifier[1].in_features  # 1280
-
-        for p in self.features.parameters():
-            p.requires_grad = False
+        in_feat       = bb.classifier[1].in_features   # 1280
 
         self.head = nn.Sequential(
             nn.Dropout(dropout),
@@ -142,8 +149,16 @@ class DRNet(nn.Module):
         x = torch.flatten(x, 1)
         return self.head(x)
 
+    def forward_with_embedding(self, x):
+        """Same as forward(), but also returns the pre-head pooled embedding."""
+        feat   = self.features(x)
+        pooled = self.pool(feat)
+        pooled = torch.flatten(pooled, 1)   # (B, 1280) — matches FeatureExtractor in notebook
+        logits = self.head(pooled)
+        return logits, pooled
 
-# ─── GradCAM ──────────────────────────────────────────────────────────────────
+
+# ─── GradCAM ───────────────────────────────────────────────────────────────
 class GradCAM:
     def __init__(self, model, target_layer):
         self.model       = model
@@ -171,19 +186,71 @@ class GradCAM:
         return cam
 
 
-# ─── Model cache ──────────────────────────────────────────────────────────────
-_model_cache = {}
+# ─── Model / OOD-config cache ─────────────────────────────────────────────────
+_model_cache   = {}
+_ood_cfg_cache = {}
+
 
 def _load_model(pth_path: str) -> DRNet:
     if pth_path in _model_cache:
         return _model_cache[pth_path]
-    model = DRNet(num_classes=5, dropout=0.3).to(device)
-    ckpt  = torch.load(pth_path, map_location=device)
-    state = ckpt.get('state_dict', ckpt)
-    model.load_state_dict(state)
+
+    model = DRNet(num_classes=NUM_CLASSES, dropout=DROPOUT).to(device)
+
+    ckpt = torch.load(pth_path, map_location=device)
+    # Checkpoint saved as {'epoch':..., 'state_dict':..., 'val_acc':..., 'img_size':...}
+    state_dict = ckpt['state_dict'] if isinstance(ckpt, dict) and 'state_dict' in ckpt else ckpt
+
+    # ── Load non-strict first to SEE any mismatch instead of guessing ──────
+    # If `missing`/`unexpected` are non-empty, the architecture here doesn't
+    # match what the checkpoint was trained with — that alone would explain
+    # "notebook correct, Flask wrong" even though the surrounding code looks
+    # identical. This is the #1 thing to check before anything else.
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    if missing or unexpected:
+        print(f"[MODEL LOAD WARNING] {pth_path}")
+        print(f"  Missing keys    ({len(missing)}): {missing}")
+        print(f"  Unexpected keys ({len(unexpected)}): {unexpected}")
+        # Loading strict=False silently continues with partially-initialized
+        # (random) weights for any missing key — that alone can produce
+        # confidently wrong predictions. Fail loudly instead of guessing.
+        raise RuntimeError(
+            "Checkpoint state_dict does not match DRNet architecture exactly. "
+            "See MISSING/UNEXPECTED keys above. Predictions will be wrong "
+            "until this is fixed — do not proceed with a partially-loaded model."
+        )
+
+    if ckpt.get('epoch') is not None:
+        print(f"[MODEL LOAD] {pth_path} — epoch={ckpt.get('epoch')} "
+              f"val_acc={ckpt.get('val_acc')}")
+
     model.eval()
+    for p in model.parameters():
+        p.requires_grad_(False)
+
     _model_cache[pth_path] = model
     return model
+
+
+def _load_ood_config(ood_config_path: str) -> dict:
+    if ood_config_path in _ood_cfg_cache:
+        return _ood_cfg_cache[ood_config_path]
+
+    with open(ood_config_path, 'r') as f:
+        raw_cfg = json.load(f)
+
+    cfg = {
+        'threshold':   float(raw_cfg['threshold']),
+        'embed_dim':   int(raw_cfg.get('embed_dim', 1280)),
+        'num_classes': int(raw_cfg['num_classes']),
+        'class_means': {
+            int(k): np.array(v, dtype=np.float32)
+            for k, v in raw_cfg['class_means'].items()
+        },
+        'cov_inv': np.array(raw_cfg['cov_inv'], dtype=np.float32),
+    }
+    _ood_cfg_cache[ood_config_path] = cfg
+    return cfg
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -213,7 +280,6 @@ def _numpy_to_b64(arr: np.ndarray, fmt: str = 'PNG') -> str:
 
 
 def _cam_to_b64(cam: np.ndarray) -> str:
-    """Return a base64 PNG of the jet-coloured heatmap."""
     heatmap = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
     heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
     return _numpy_to_b64(heatmap)
@@ -226,6 +292,26 @@ def _overlay_to_b64(orig_rgb: np.ndarray, cam: np.ndarray) -> str:
     return _numpy_to_b64(overlay)
 
 
+def _compute_ood_score(pooled_embedding: np.ndarray, ood_config_path: str):
+    """
+    Minimum Mahalanobis distance over all class-conditional Gaussians
+    (shared/tied covariance) — matches notebook CELL OOD-B mahalanobis_distance().
+    """
+    cfg = _load_ood_config(ood_config_path)
+    x = pooled_embedding[np.newaxis, :]
+    cov_inv = cfg['cov_inv']
+
+    distances = []
+    for cls_idx in range(cfg['num_classes']):
+        diff = x - cfg['class_means'][cls_idx]
+        d = np.einsum('bi,ij,bj->b', diff, cov_inv, diff)[0]
+        distances.append(d)
+
+    min_dist  = float(np.min(distances))
+    threshold = cfg['threshold']
+    return min_dist, min_dist > threshold, threshold
+
+
 # ─── Main route ───────────────────────────────────────────────────────────────
 @dr_bp.route('/analyze', methods=['POST'])
 def analyze():
@@ -235,43 +321,100 @@ def analyze():
     file     = request.files['image']
     filename = file.filename or 'upload.jpg'
 
-    # ── Locate .pth model ────────────────────────────────────
+    # ── Locate .pth model + ood_config.json ────────────────────
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    pth_path = os.path.join(base_dir, 'best_dr_efficientnetv2s.pth')
+    pth_path = os.path.join(base_dir, "models", 'best_dr_efficientnetv2s.pth')
+    ood_config_path = os.path.join(base_dir, "models", 'dr_ood_config.json')
+
+    if DEBUG_MODE:
+        print(f"[DEBUG] base_dir   = {base_dir}")
+        print(f"[DEBUG] pth_path   = {pth_path}  exists={os.path.exists(pth_path)}")
+        print(f"[DEBUG] ood_config = {ood_config_path}  exists={os.path.exists(ood_config_path)}")
+
     if not os.path.exists(pth_path):
         return jsonify({'error': f'Model file not found at {pth_path}'}), 500
+    if not os.path.exists(ood_config_path):
+        return jsonify({'error': f'OOD config not found at {ood_config_path}'}), 500
 
     # ── Load image ───────────────────────────────────────────
     try:
-        pil_img = Image.open(io.BytesIO(file.read())).convert('RGB')
+        raw_bytes = file.read()
+        pil_img = Image.open(io.BytesIO(raw_bytes)).convert('RGB')
     except Exception as e:
         return jsonify({'error': f'Cannot open image: {e}'}), 400
 
+    if DEBUG_MODE:
+        print(f"[DEBUG] filename={filename}  uploaded_bytes={len(raw_bytes)}  "
+              f"pil_size={pil_img.size}  mode={pil_img.mode}")
+
     orig_resized = np.array(pil_img.resize((IMG_SIZE, IMG_SIZE), Image.BILINEAR))
 
-    # ── Load model ───────────────────────────────────────────
+    # ── Load model + OOD config ───────────────────────────────
     try:
-        model = _load_model(pth_path)
+        model   = _load_model(pth_path)
+        ood_cfg = _load_ood_config(ood_config_path)
+        target_layer = model.features[-1]   # matches notebook's get_gradcam_overlay
     except Exception as e:
         return jsonify({'error': f'Model load error: {e}'}), 500
 
-    # ── Inference ────────────────────────────────────────────
-    input_tensor = _preprocess_tensor(pil_img).requires_grad_(True)
-    with torch.no_grad():
-        logits_np = model(input_tensor).cpu().numpy()[0]
+    # ── Inference + embedding (single forward pass, no grad) ─
+    try:
+        input_tensor = _preprocess_tensor(pil_img)
+        with torch.no_grad():
+            logits_t, pooled_t = model.forward_with_embedding(input_tensor)
+        logits_np = logits_t.cpu().numpy()[0]
+        pooled_np = pooled_t.cpu().numpy()[0]
+    except Exception as e:
+        return jsonify({'error': f'Inference error: {e}'}), 500
+
     probs      = _softmax(logits_np)
     pred_class = int(probs.argmax())
     confidence = float(probs[pred_class]) * 100
 
-    # ── GradCAM (re-run with grad) ────────────────────────────
+    if DEBUG_MODE:
+        print(f"[DEBUG] logits = {logits_np.tolist()}")
+        print(f"[DEBUG] probs  = {[round(float(p) * 100, 2) for p in probs]}")
+        print(f"[DEBUG] pred_class={pred_class} ({CLASS_NAMES[pred_class]})  "
+              f"confidence={confidence:.2f}%")
+        # Compare this against the same image run through the notebook's
+        # run_onnx() (or ood_model(input_tensor) directly, bypassing ONNX).
+        # If logits differ meaningfully here, the checkpoint or preprocessing
+        # differs between the two environments — if they match, the model is
+        # fine and any remaining issue is in the frontend/response handling.
+
+    # ── OOD check ────────────────────────────────────────────
     try:
-        gradcam      = GradCAM(model, model.features[-1])
+        ood_score, is_ood, ood_threshold = _compute_ood_score(pooled_np, ood_config_path)
+    except Exception as e:
+        return jsonify({'error': f'OOD scoring error: {e}'}), 500
+
+    if DEBUG_MODE:
+        print(f"[DEBUG] ood_score={ood_score:.4f}  threshold={ood_threshold:.4f}  is_ood={is_ood}")
+
+    # ── Low-confidence check — treated the same as OOD ────────
+    is_low_confidence = confidence < LOW_CONFIDENCE_THRESHOLD
+    is_flagged = is_ood or is_low_confidence
+
+    if is_ood and is_low_confidence:
+        flag_reason = 'ood_and_low_confidence'
+    elif is_ood:
+        flag_reason = 'ood'
+    elif is_low_confidence:
+        flag_reason = 'low_confidence'
+    else:
+        flag_reason = None
+
+    # ── GradCAM (re-run with grad enabled) ────────────────────
+    try:
+        gradcam      = GradCAM(model, target_layer)
         input_grad   = _preprocess_tensor(pil_img).requires_grad_(True)
         cam          = gradcam.generate(input_grad, pred_class)
         cam_resized  = cv2.resize(cam, (IMG_SIZE, IMG_SIZE))
         gradcam_b64  = _cam_to_b64(cam_resized)
         overlay_b64  = _overlay_to_b64(orig_resized, cam_resized)
     except Exception as e:
+        if DEBUG_MODE:
+            print(f"[DEBUG] GradCAM failed: {e}")
         gradcam_b64  = ''
         overlay_b64  = ''
 
@@ -281,6 +424,39 @@ def analyze():
     template    = CLINICAL_TEMPLATES[pred_class][var_idx]
     explanation = template.format(**lesions)
     recommendation = RECOMMENDATIONS[pred_class]
+
+    # If OOD and/or low-confidence, prepend the same disclaimer either way —
+    # grade/lesion counts are still returned, but flagged as unreliable.
+    if is_flagged:
+        if is_ood and is_low_confidence:
+            warning_reason = (
+                "this image's feature embedding falls outside the training "
+                "distribution AND the model's confidence in this prediction "
+                f"is low ({confidence:.1f}%)"
+            )
+        elif is_ood:
+            warning_reason = (
+                "this image's feature embedding falls outside the range of "
+                "the training distribution (non-retinal image, poor-quality "
+                "capture, or an unusual fundus not well represented in "
+                "training data)"
+            )
+        else:
+            warning_reason = (
+                f"the model's confidence in this prediction is low "
+                f"({confidence:.1f}%, below the {LOW_CONFIDENCE_THRESHOLD:.0f}% "
+                "reliability threshold)"
+            )
+
+        explanation = (
+            f"⚠ UNRELIABLE PREDICTION WARNING: {warning_reason}. "
+            "The DR grade and lesion counts below may be unreliable. "
+        ) + explanation
+        recommendation = (
+            "Please verify the uploaded image is a valid, in-focus retinal fundus "
+            "photograph and re-submit. If the image is confirmed valid, an in-person "
+            "clinical evaluation is recommended rather than relying on this automated result."
+        )
 
     # ── Original image base64 ─────────────────────────────────
     orig_b64 = _numpy_to_b64(orig_resized)
@@ -302,4 +478,17 @@ def analyze():
         'gradcam_b64':      gradcam_b64,
         'overlay_b64':      overlay_b64,
         'original_b64':     orig_b64,
+        'ood': {
+            'is_ood':    is_ood,
+            'score':     round(ood_score, 4),
+            'threshold': round(ood_threshold, 4),
+            'method':    'mahalanobis',
+            'target_layer': 'features[-1]',
+        },
+        'reliability': {
+            'is_flagged':          is_flagged,
+            'is_low_confidence':   is_low_confidence,
+            'confidence_threshold': LOW_CONFIDENCE_THRESHOLD,
+            'reason':              flag_reason,
+        },
     })

@@ -50,6 +50,31 @@ class GlaucomaEfficientNetB0(nn.Module):
 
 
 # =============================================================================
+#  PROJECT ROOT — auto-derived, no hardcoded absolute path
+#  ───────────────────────────────────────────────────────
+#  This resolves to the folder app.py itself lives in, no matter what drive,
+#  username, or parent folder path it's copied/cloned into. So when you share
+#  this project (zip, git clone, another PC, a server) it works immediately —
+#  nothing to edit.
+#
+#  Assumes this layout (matches your project):
+#      backend/
+#        app.py                     ← this file
+#        models/
+#          best_model_b0_clean.pth
+#          glaucoma_ood_config.json
+#        routes/
+#          glaucoma.py
+#          cdr.py
+# =============================================================================
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH      = os.path.join(PROJECT_ROOT, "models", "best_model_b0_clean.pth")
+OOD_CONFIG_PATH = os.path.join(PROJECT_ROOT, "models", "glaucoma_ood_config.json")
+
+
+# =============================================================================
 #  App factory
 # =============================================================================
 
@@ -64,7 +89,14 @@ def create_app():
     # EXACT class order from notebook: CLASS_NAMES = ["advanced", "early", "normal"]
     app.config["CLASS_NAMES"] = ["advanced", "early", "normal"]
 
-    app.config["MODEL_PATH"]  = os.environ.get("MODEL_PATH", "model.pth")
+    app.config["MODEL_PATH"]      = MODEL_PATH
+    app.config["OOD_CONFIG_PATH"] = OOD_CONFIG_PATH
+
+    # Debug visibility — print exactly what the process is looking for at boot.
+    print(f"[BOOT] MODEL_PATH        = {MODEL_PATH}")
+    print(f"[BOOT] MODEL_PATH exists = {os.path.exists(MODEL_PATH)}")
+    print(f"[BOOT] OOD_CONFIG_PATH   = {OOD_CONFIG_PATH}")
+    print(f"[BOOT] OOD_CONFIG exists = {os.path.exists(OOD_CONFIG_PATH)}")
 
     _load_model(app)
 
@@ -82,10 +114,14 @@ def create_app():
     @app.route("/api/health", methods=["GET"])
     def health():
         return jsonify({
-            "status":       "ok",
-            "device":       str(app.config["DEVICE"]),
-            "model_loaded": app.config["MODEL"] is not None,
-            "timestamp":    datetime.utcnow().isoformat()
+            "status":            "ok",
+            "device":            str(app.config["DEVICE"]),
+            "model_loaded":      app.config["MODEL"] is not None,
+            "model_path":        app.config["MODEL_PATH"],
+            "model_path_exists": os.path.exists(app.config["MODEL_PATH"]),
+            "ood_config_path":   app.config["OOD_CONFIG_PATH"],
+            "ood_config_found":  os.path.exists(app.config["OOD_CONFIG_PATH"]),
+            "timestamp":         datetime.utcnow().isoformat()
         })
 
     return app
@@ -126,6 +162,14 @@ def _load_model(app):
         app.config["MODEL"] = model
         print(f"[INFO] Model loaded from '{path}' on {device}")
         print(f"[INFO] Class order: {app.config['CLASS_NAMES']}")
+
+        # Sanity log so it's obvious at boot whether OOD detection will work
+        ood_path = app.config["OOD_CONFIG_PATH"]
+        if os.path.exists(ood_path):
+            print(f"[INFO] OOD config found at '{ood_path}' — Mahalanobis OOD check enabled")
+        else:
+            print(f"[WARN] OOD config NOT found at '{ood_path}' — "
+                  f"Mahalanobis OOD check disabled (low-confidence-only rule still applies)")
 
     except RuntimeError as e:
         print(f"[ERROR] State dict mismatch — check architecture:\n{e}")
