@@ -459,15 +459,13 @@ export default function DiabeticRetinopathy() {
                     )}
                   </div>
                 ) : (
-                  <div
-                    className="flex flex-col items-center w-full py-10 cursor-pointer"
-                    onClick={() =>
-                      document.getElementById("retina-upload-input").click()
-                    }
+                  <label
+                    htmlFor="retina-upload-input"
+                    className="flex flex-col items-center w-full py-10 text-center cursor-pointer group"
                   >
-                    <div className="flex items-center justify-center w-16 h-16 mb-4 border bg-slate-50 rounded-2xl border-slate-100">
+                    <div className="flex items-center justify-center w-16 h-16 mb-5 transition-all duration-300 border rounded-2xl bg-indigo-50/70 border-indigo-100 group-hover:bg-indigo-100 group-hover:border-indigo-200 group-hover:-translate-y-0.5">
                       <svg
-                        className="w-6 h-6 text-slate-400"
+                        className="w-7 h-7 text-indigo-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -475,24 +473,28 @@ export default function DiabeticRetinopathy() {
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M12 4v16m8-8H4"
+                          strokeWidth="1.7"
+                          d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v2A2.5 2.5 0 0 0 7.5 19h9a2.5 2.5 0 0 0 2.5-2.5v-2"
                         />
                       </svg>
                     </div>
-                    <p className="text-sm font-bold tracking-wide uppercase text-slate-700">
-                      Upload Fundus Photo
+                    <p className="text-sm font-bold tracking-wide text-slate-800">
+                      Upload fundus image
                     </p>
-                    <p className="mt-1 font-mono text-xs italic text-slate-400">
-                      Drop image or click here
+                    <p className="mt-2 text-xs text-slate-500">
+                      Drag and drop your image here, or <span className="font-semibold text-indigo-600">browse files</span>
                     </p>
+                    <span className="px-3 py-1 mt-4 text-[10px] font-semibold tracking-wider uppercase border rounded-full text-slate-500 border-slate-200 bg-slate-50">
+                      JPG or PNG · Recommended for screening
+                    </span>
                     <input
                       id="retina-upload-input"
                       type="file"
+                      accept="image/jpeg,image/png"
                       className="hidden"
                       onChange={(e) => handleFile(e.target.files[0])}
                     />
-                  </div>
+                  </label>
                 )}
               </div>
             </div>
