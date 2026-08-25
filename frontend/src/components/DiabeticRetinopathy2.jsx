@@ -672,7 +672,7 @@ export default function DiabeticRetinopathy() {
                       </p>
                     </div>
                     <div className="p-4 border bg-white/10 backdrop-blur-md border-white/10 rounded-2xl">
-                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2 block tracking-widest">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2 block">
                         Medical Action Plan
                       </span>
                       <p className="text-xs italic font-medium leading-relaxed text-slate-200">
