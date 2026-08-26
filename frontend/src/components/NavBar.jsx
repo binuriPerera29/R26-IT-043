@@ -178,6 +178,7 @@ export default function NavBar() {
       `}</style>
 
       <nav
+        className="site-nav"
         style={{
           background: "#ffffff",
           borderBottom: scrolled ? "1px solid #d8dce3" : "1px solid #e8eaed",
@@ -206,6 +207,7 @@ export default function NavBar() {
         )}
 
         <div
+          className="site-nav-inner"
           style={{
             maxWidth: 1100,
             margin: "0 auto",
