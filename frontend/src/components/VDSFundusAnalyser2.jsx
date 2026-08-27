@@ -839,7 +839,7 @@ export default function VDSFundusAnalyser() {
 
               {/* VDS score hero — hidden for OOD images since the score/classification isn't trustworthy */}
               {result && cfg && !isOod && (
-                <div className="card" style={{ padding: "24px 24px 20px", marginTop: "auto", animation: "fadeUp 0.5s ease both" }}>
+                <div className="card" style={{ padding: "24px 24px 20px", animation: "fadeUp 0.5s ease both" }}>
                   <div style={{
                     display: "flex", alignItems: "flex-start",
                     justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12
@@ -908,7 +908,7 @@ export default function VDSFundusAnalyser() {
 
 
               {/* VDS Component Scores — hidden for OOD images */}
-              {result && cfg && !isOod && (
+              {/* {result && cfg && !isOod && (
                 <div className="card" style={{ padding: "20px 24px", animation: "fadeUp 0.5s ease both", animationDelay: "0.1s" }}>
                   <span className="accent-label" style={{ marginBottom: 14, display: "block" }}>
                     VDS Component Scores
@@ -924,7 +924,7 @@ export default function VDSFundusAnalyser() {
                     })}
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* ── RIGHT ── */}
