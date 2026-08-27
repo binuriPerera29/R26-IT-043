@@ -664,11 +664,11 @@ export default function VDSFundusAnalyser() {
               fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 600,
               color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1.2
             }}>
-              Visibility Degradation{" "}
+              Cataract Detection &{" "}
               <span style={{
                 background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
-              }}>Score Analyser</span>
+              }}>Severity Analyzer</span>
             </h1>
             <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10, maxWidth: 520, lineHeight: 1.7 }}>
               Upload a retinal fundus photograph. Our model computes a composite VDS across 5 clinical
