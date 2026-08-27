@@ -870,9 +870,9 @@ export default function VDSFundusAnalyser() {
                           </span>
                         )}
                       </div>
-                      {result.vds_source === "seeded" && (
+                      {/* {result.vds_source === "seeded" && (
                         <span style={{ fontSize: 10, color: "#f59e0b", display: "block", marginTop: 4 }}>⚠ range-corrected</span>
-                      )}
+                      )} */}
                     </div>
                   </div>
 
