@@ -667,7 +667,7 @@ export default function DiabeticRetinopathy() {
                   <div className="relative z-10 space-y-6">
                     <div>
                       <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-2 block">
-                        AI Interpretation
+                        AI Clinical Interpretation
                       </span>
                       <p className="text-sm font-medium leading-relaxed text-indigo-50">
                         {result.explanation}
