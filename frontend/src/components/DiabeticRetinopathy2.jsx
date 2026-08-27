@@ -447,13 +447,13 @@ export default function DiabeticRetinopathy() {
                           onClick={handleAnalyse}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-indigo-200 transition-all"
                         >
-                          START AI SCAN
+                          Start AI Analysis
                         </button>
                         <button
                           onClick={handleReset}
                           className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold transition-all"
                         >
-                          CHANGE
+                          CHANGE IMAGE
                         </button>
                       </div>
                     )}
