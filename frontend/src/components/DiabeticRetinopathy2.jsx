@@ -558,7 +558,7 @@ export default function DiabeticRetinopathy() {
                 {!isOod && (
                   <div className="p-6 bg-white border shadow-sm border-slate-200 rounded-3xl">
                     <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-4">
-                      Clinical Findings
+                      Detected Lesions
                     </span>
                     <div className="grid grid-cols-1 gap-2.5">
                       <LesionBadge
@@ -675,7 +675,7 @@ export default function DiabeticRetinopathy() {
                     </div>
                     <div className="p-4 border bg-white/10 backdrop-blur-md border-white/10 rounded-2xl">
                       <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2 block">
-                        Medical Action Plan
+                        Clinical Recommendation
                       </span>
                       <p className="text-xs italic font-medium leading-relaxed text-slate-200">
                         "{result.recommendation}"
