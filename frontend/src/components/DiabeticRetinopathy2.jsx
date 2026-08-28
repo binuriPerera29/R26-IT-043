@@ -119,6 +119,40 @@ function LesionBadge({ label, count, color, icon }) {
   );
 }
 
+function SeverityScale({ activeGrade }) {
+  return (
+    <div className="pt-4 mt-5 border-t border-slate-100">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
+          Severity scale
+        </span>
+        <span className="text-[10px] font-semibold text-slate-500">
+          Grade {activeGrade} of 4
+        </span>
+      </div>
+      <div className="flex items-start gap-1">
+        {GRADE_META.map((meta, index) => (
+          <div key={meta.label} className="flex-1 min-w-0 text-center">
+            <div
+              className="h-1.5 rounded-full transition-all"
+              style={{
+                background: index <= activeGrade ? meta.color : "#e2e8f0",
+                opacity: index === activeGrade ? 1 : index < activeGrade ? 0.55 : 1,
+              }}
+            />
+            <span
+              className="block mt-1 text-[8px] leading-tight truncate"
+              style={{ color: index === activeGrade ? meta.color : "#94a3b8" }}
+            >
+              {meta.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── ImagePanel ─────────────────────────────────────────────────────────── */
 function ImagePanel({ title, src, tag, tagColor = "#6366f1" }) {
   return (
@@ -601,6 +635,7 @@ export default function DiabeticRetinopathy() {
                             {result.confidence.toFixed(1)}%
                           </span>
                         </div>
+                        <SeverityScale activeGrade={result.grade} />
                       </div>
                     );
                   })()}
@@ -694,7 +729,7 @@ export default function DiabeticRetinopathy() {
                     <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-6 font-bold">
                       Inference Probability Distribution
                     </span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
+                    <div className="grid grid-cols-1 gap-y-1">
                       {Object.entries(result.probabilities).map(
                         ([name, val], i) => (
                           <ProbabilityBar
@@ -711,21 +746,21 @@ export default function DiabeticRetinopathy() {
                 )}
 
                 {/* Final Recommendation — always shown, tells the user to re-submit on OOD */}
-                <div className="relative p-8 overflow-hidden text-white bg-indigo-900 shadow-xl rounded-3xl">
+                <div className="relative p-8 overflow-hidden text-white bg-[#173b6d] shadow-xl shadow-[#173b6d]/20 rounded-2xl">
                   <div className="absolute top-0 right-0 p-4 opacity-10">
                     <EyeIcon size={120} color="#fff" />
                   </div>
                   <div className="relative z-10 space-y-6">
                     <div>
-                      <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-2 block">
+                      <span className="text-[10px] font-bold text-[#9fc5ff] uppercase tracking-widest mb-2 block">
                         AI Clinical Interpretation
                       </span>
-                      <p className="text-sm font-medium leading-relaxed text-indigo-50">
+                      <p className="text-sm font-medium leading-relaxed text-[#eef5ff]">
                         {result.explanation}
                       </p>
                     </div>
-                    <div className="p-4 border bg-white/10 backdrop-blur-md border-white/10 rounded-2xl">
-                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2 block">
+                    <div className="p-4 border bg-white/10 backdrop-blur-md border-[#9fc5ff]/25 rounded-xl">
+                      <span className="text-[10px] font-bold text-[#f6c85f] uppercase tracking-widest mb-2 block">
                         Clinical Recommendation
                       </span>
                       <p className="text-xs italic font-medium leading-relaxed text-slate-200">
