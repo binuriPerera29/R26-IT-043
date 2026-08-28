@@ -497,6 +497,57 @@ export default function DiabeticRetinopathy() {
                   </label>
                 )}
               </div>
+
+              {!preview && (
+                <div className="pt-5 mt-6 border-t border-slate-100">
+                  <div className="flex items-start gap-3 p-4 border rounded-2xl border-teal-100 bg-teal-50/60">
+                  <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-xl bg-teal-100 text-teal-700">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9" strokeWidth="1.8" />
+                      <path strokeLinecap="round" strokeWidth="1.8" d="M12 10v6m0-9h.01" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold tracking-wide text-teal-900">
+                      First time using the screener?
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-teal-800/75">
+                      For the most reliable result, upload a clear, well-lit fundus photo with the full circular retina visible.
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5 mt-3 sm:grid-cols-2">
+                      {[
+                        "Avoid blur and glare",
+                        "Keep the retina centered",
+                        "Use JPG or PNG format",
+                        "Do not heavily crop the image",
+                      ].map((tip) => (
+                        <div key={tip} className="flex items-center gap-1.5 text-[10px] font-medium text-teal-900/75">
+                          <svg
+                            className="flex-shrink-0 w-3.5 h-3.5 text-teal-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m5 12 4 4L19 6" />
+                          </svg>
+                          <span>{tip}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  </div>
+                  <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
+                    Screening support only. Results should be reviewed by a qualified clinician.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* AI Result Side Cards */}
