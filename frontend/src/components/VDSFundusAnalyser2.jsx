@@ -756,7 +756,7 @@ export default function VDSFundusAnalyser() {
                         </p>
                         <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>or click to browse files</p>
                         <div style={{ display: "flex", gap: 6 }}>
-                          {["JPG", "PNG", "BMP", "TIFF"].map(f => (
+                          {["JPG", "PNG"].map(f => (
                             <span key={f} className="mono" style={{
                               fontSize: 10, padding: "3px 8px", borderRadius: 5,
                               background: "#f1f5f9", border: "1px solid #e2e8f0", color: "#94a3b8"
