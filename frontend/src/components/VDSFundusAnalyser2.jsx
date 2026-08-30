@@ -840,67 +840,73 @@ export default function VDSFundusAnalyser() {
               {/* VDS score hero — hidden for OOD images since the score/classification isn't trustworthy */}
               {result && cfg && !isOod && (
                 <div className="card" style={{ padding: "24px 24px 20px", animation: "fadeUp 0.5s ease both" }}>
-                  <div style={{
-                    display: "flex", alignItems: "flex-start",
-                    justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12
-                  }}>
-                    {/* LEFT: VDS SCORE */}
-                    <div>
-                      <span className="accent-label" style={{ marginBottom: 6 }}>VDS Score</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {/* Severity classification box */}
+                    <div style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 16,
+                      background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                      padding: "18px 18px 16px",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)"
+                    }}>
+                      <span className="accent-label" style={{ marginBottom: 10, display: "block" }}>Severity Classification</span>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                          <span className={`mono ${cfg.text}`}
+                            style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px", textTransform: "uppercase" }}>
+                            {result.predicted_class}
+                          </span>
+                          {maxClassProb > 0 && (
+                            <span className="mono" style={{ fontSize: 14, color: "#94a3b8", fontWeight: 400 }}>
+                              {(maxClassProb * 100).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "5px 10px", borderRadius: 999, border: "1px solid",
+                          fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"
+                        }} className={cfg.pill}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", display: "inline-block" }}
+                            className={cfg.dot} />
+                          {result.grade}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* VDS score box */}
+                    <div style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 16,
+                      background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                      padding: "18px 18px 16px",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)"
+                    }}>
+                      <span className="accent-label" style={{ marginBottom: 10, display: "block" }}>VDS Score</span>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                         <span className={`mono ${cfg.text}`}
-                          style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px" }}>
+                          style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px" }}>
                           <AnimatedNumber value={result.vds * 100} decimals={2} />
                         </span>
                         <span className="mono" style={{ fontSize: 18, color: "#94a3b8", fontWeight: 400 }}>%</span>
                       </div>
-                    </div>
 
-                    {/* RIGHT: PRIMARY CLASSIFICATION */}
-                    <div style={{ textAlign: "right" }}>
-                      <span className="accent-label" style={{ marginBottom: 6, display: "block" }}>Classification</span>
-                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 6 }}>
-                        <span className={`mono ${cfg.text}`}
-                          style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px", textTransform: "uppercase" }}>
-                          {result.predicted_class}
-                        </span>
-                        {maxClassProb > 0 && (
-                          <span className="mono" style={{ fontSize: 18, color: "#94a3b8", fontWeight: 400 }}>
-                            {(maxClassProb * 100).toFixed(1)}%
-                          </span>
-                        )}
+                      <div style={{ marginTop: 14 }}>
+                        <div className="gauge-track">
+                          <div
+                            className={`gauge-fill bg-gradient-to-r ${cfg.bar}`}
+                            style={{ width: `${result.vds * 100}%` }}
+                          />
+                        </div>
+                        <div className="mono" style={{
+                          display: "flex", justifyContent: "space-between",
+                          fontSize: 9, color: "#cbd5e1", marginTop: 6, letterSpacing: "0.08em"
+                        }}>
+                          <span>0 · CLEAR</span><span>100 · SEVERE</span>
+                        </div>
                       </div>
-                      {/* {result.vds_source === "seeded" && (
-                        <span style={{ fontSize: 10, color: "#f59e0b", display: "block", marginTop: 4 }}>⚠ range-corrected</span>
-                      )} */}
                     </div>
-                  </div>
-
-                  {/* PILL BADGE */}
-                  <div style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "4px 10px", borderRadius: 99, border: "1px solid",
-                      fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"
-                    }} className={cfg.pill}>
-                      <span style={{ width: 5, height: 5, borderRadius: "50%", display: "inline-block" }}
-                        className={cfg.dot} />
-                      {result.grade}
-                    </span>
-                  </div>
-
-                  {/* GAUGE */}
-                  <div className="gauge-track">
-                    <div
-                      className={`gauge-fill bg-gradient-to-r ${cfg.bar}`}
-                      style={{ width: `${result.vds * 100}%` }}
-                    />
-                  </div>
-                  <div className="mono" style={{
-                    display: "flex", justifyContent: "space-between",
-                    fontSize: 9, color: "#cbd5e1", marginTop: 6, letterSpacing: "0.08em"
-                  }}>
-                    <span>0 · CLEAR</span><span>100 · SEVERE</span>
                   </div>
                 </div>
               )}
