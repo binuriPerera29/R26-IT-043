@@ -469,8 +469,7 @@ export default function GlaucomaFundusAnalyser() {
             AI-Assisted Glaucoma Screening
           </h1>
           <p className="text-sm text-slate-500">
-            Automated Optic Disc segmentation, diagnostic classification and Grad-CAM
-            explainability
+           Automated glaucoma classification, CDR analysis, and explainable AI insights for clinical decision support
           </p>
         </div>
 
