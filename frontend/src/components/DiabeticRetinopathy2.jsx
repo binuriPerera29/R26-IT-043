@@ -5,33 +5,38 @@ import { analyzeRetina } from "../services/api_dr";
 const GRADE_META = [
   {
     label: "No DR",
-    color: "#10b981",
-    bg: "rgba(16,185,129,0.08)",
-    ring: "#bbf7d0",
-  },
-  {
-    label: "Mild DR",
-    color: "#84cc16",
-    bg: "rgba(132,204,22,0.08)",
+    color: "#1EBD1C",
+    dark: "#1EBD1C",
+    bg: "rgba(30, 189, 28, 0.08)",
     ring: "#d9f99d",
   },
   {
+    label: "Mild DR",
+    color: "#F5F118",
+    dark: "#F5F118",
+    bg: "rgba(245, 241, 24, 0.08)",
+    ring: "#fef9c3",
+  },
+  {
     label: "Moderate DR",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,0.08)",
-    ring: "#fef3c7",
+    color: "#F5770C",
+    dark: "#F5770C",
+    bg: "rgba(245, 119, 12, 0.08)",
+    ring: "#fed7aa",
   },
   {
     label: "Severe DR",
-    color: "#ea580c",
-    bg: "rgba(234,88,12,0.08)",
-    ring: "#ffedd5",
+    color: "#CE0303",
+    dark: "#CE0303",
+    bg: "rgba(206, 3, 3, 0.08)",
+    ring: "#fecaca",
   },
   {
     label: "Proliferative DR",
-    color: "#ef4444",
-    bg: "rgba(239,68,68,0.08)",
-    ring: "#fee2e2",
+    color: "#A1023C",
+    dark: "#A1023C",
+    bg: "rgba(161, 2, 60, 0.08)",
+    ring: "#fbcfe8",
   },
 ];
 
@@ -75,17 +80,20 @@ function LoadingState() {
 }
 
 /* ─── ProbabilityBar ─────────────────────────────────────────────────────── */
-function ProbabilityBar({ name, value, color, isMax }) {
+function ProbabilityBar({ name, value, color, darkColor, isMax }) {
   return (
     <div className="mb-2.5">
       <div className="flex items-center justify-between mb-1">
         <span
           className="text-[10px] font-mono uppercase tracking-tight"
-          style={{ color: isMax ? color : "#94a3b8" }}
+          style={{ color: isMax ? darkColor : "#475569" }}
         >
           {name}
         </span>
-        <span className="text-[10px] font-mono font-bold" style={{ color }}>
+        <span
+          className="text-[10px] font-mono font-bold"
+          style={{ color: darkColor || color }}
+        >
           {value.toFixed(1)}%
         </span>
       </div>
@@ -94,7 +102,8 @@ function ProbabilityBar({ name, value, color, isMax }) {
           className="h-full transition-all duration-1000 ease-out rounded-full"
           style={{
             width: `${value}%`,
-            background: isMax ? color : "#cbd5e1",
+            background: darkColor || color,
+            opacity: isMax ? 1 : 0.72,
           }}
         />
       </div>
@@ -737,6 +746,7 @@ export default function DiabeticRetinopathy() {
                             name={name}
                             value={val}
                             color={GRADE_META[i]?.color || "#6366f1"}
+                            darkColor={GRADE_META[i]?.dark || "#1f2937"}
                             isMax={i === result.grade}
                           />
                         ),
