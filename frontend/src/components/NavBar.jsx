@@ -85,7 +85,7 @@ function Logo() {
             fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
           }}
         >
-          Retinal<span style={{ color: "#1a6fc4" }}>AI</span>
+          EyeCare<span style={{ color: "#1a6fc4" }}>AI</span>
         </span>
         <span
           style={{
