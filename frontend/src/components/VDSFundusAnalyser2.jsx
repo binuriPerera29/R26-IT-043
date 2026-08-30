@@ -1006,7 +1006,7 @@ export default function VDSFundusAnalyser() {
                   )}
 
                   {/* Region activations — hidden for OOD images */}
-                  {!isOod && result.region_activations && (
+                  {/* {!isOod && result.region_activations && (
                     <div className="card" style={{ padding: "20px 24px" }}>
                       <span className="accent-label" style={{ marginBottom: 14, display: "block" }}>
                         Grad-CAM Region Activations
@@ -1031,7 +1031,7 @@ export default function VDSFundusAnalyser() {
                         Warmer = higher model attention.
                       </p>
                     </div>
-                  )}
+                  )} */}
                 </div>
               )}
             </div>
