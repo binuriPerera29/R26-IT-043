@@ -518,7 +518,7 @@ export default function GlaucomaFundusAnalyser() {
                   </svg>
                 </div>
                 <p className="text-sm font-bold text-slate-700">Click to upload fundus image</p>
-                <p className="mt-1 text-xs text-slate-400">Supports High-res JPG, PNG</p>
+                <p className="mt-1 text-xs text-slate-400">Supports retinal fundus images in JPG and PNG formats</p>
               </div>
             )}
           </div>
