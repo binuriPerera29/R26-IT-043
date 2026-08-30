@@ -804,7 +804,7 @@ export default function OCTFundusAnalyser() {
                   </button>
                   <button
                     disabled={loading}
-                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border-0 bg-gradient-to-br from-indigo-500 to-violet-500 text-white text-[13px] font-semibold cursor-pointer shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 hover:-translate-y-px transition-all disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border-0 bg-gradient-to-br from-yellow-400 to-amber-500 text-slate-900 text-[13px] font-semibold cursor-pointer shadow-lg shadow-yellow-200 hover:shadow-xl hover:shadow-yellow-300 hover:-translate-y-px transition-all disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAnalyse();
