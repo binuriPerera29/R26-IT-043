@@ -659,20 +659,19 @@ export default function VDSFundusAnalyser() {
 
           {/* Page heading */}
           <div style={{ marginBottom: 32, animation: "fadeUp 0.5s ease both" }}>
-            <span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span>
+            {/*<span className="accent-label" style={{ marginBottom: 8 }}>Retinal Analysis Platform</span>*/}
             <h1 style={{
               fontSize: "clamp(26px, 4vw, 34px)", fontWeight: 600,
               color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1.2
             }}>
-              Visibility Degradation{" "}
+              Cataract Detection &{" "}
               <span style={{
                 background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
-              }}>Score Analyser</span>
+              }}>Severity Analyzer</span>
             </h1>
-            <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10, maxWidth: 520, lineHeight: 1.7 }}>
-              Upload a retinal fundus photograph. Our model computes a composite VDS across 5 clinical
-              signals, visualises attention with Grad-CAM, and produces a structured clinical explanation.
+            <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 10, maxWidth: 900, lineHeight: 1.7 }}>
+              Upload a fundus photograph to assess cataract severity using AI-powered image analysis, VDS scoring, and Grad-CAM visualization.
             </p>
           </div>
 
@@ -757,7 +756,7 @@ export default function VDSFundusAnalyser() {
                         </p>
                         <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16 }}>or click to browse files</p>
                         <div style={{ display: "flex", gap: 6 }}>
-                          {["JPG", "PNG", "BMP", "TIFF"].map(f => (
+                          {["JPG", "PNG"].map(f => (
                             <span key={f} className="mono" style={{
                               fontSize: 10, padding: "3px 8px", borderRadius: 5,
                               background: "#f1f5f9", border: "1px solid #e2e8f0", color: "#94a3b8"
@@ -840,68 +839,74 @@ export default function VDSFundusAnalyser() {
 
               {/* VDS score hero — hidden for OOD images since the score/classification isn't trustworthy */}
               {result && cfg && !isOod && (
-                <div className="card" style={{ padding: "24px 24px 20px", marginTop: "auto", animation: "fadeUp 0.5s ease both" }}>
-                  <div style={{
-                    display: "flex", alignItems: "flex-start",
-                    justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12
-                  }}>
-                    {/* LEFT: VDS SCORE */}
-                    <div>
-                      <span className="accent-label" style={{ marginBottom: 6 }}>VDS Score</span>
+                <div className="card" style={{ padding: "24px 24px 20px", animation: "fadeUp 0.5s ease both" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {/* Severity classification box */}
+                    <div style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 16,
+                      background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                      padding: "18px 18px 16px",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)"
+                    }}>
+                      <span className="accent-label" style={{ marginBottom: 10, display: "block" }}>Severity Classification</span>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                          <span className={`mono ${cfg.text}`}
+                            style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px", textTransform: "uppercase" }}>
+                            {result.predicted_class}
+                          </span>
+                          {maxClassProb > 0 && (
+                            <span className="mono" style={{ fontSize: 14, color: "#94a3b8", fontWeight: 400 }}>
+                              {(maxClassProb * 100).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          padding: "5px 10px", borderRadius: 999, border: "1px solid",
+                          fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"
+                        }} className={cfg.pill}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", display: "inline-block" }}
+                            className={cfg.dot} />
+                          {result.grade}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* VDS score box */}
+                    <div style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 16,
+                      background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                      padding: "18px 18px 16px",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)"
+                    }}>
+                      <span className="accent-label" style={{ marginBottom: 10, display: "block" }}>VDS Score</span>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                         <span className={`mono ${cfg.text}`}
-                          style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px" }}>
+                          style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px" }}>
                           <AnimatedNumber value={result.vds * 100} decimals={2} />
                         </span>
                         <span className="mono" style={{ fontSize: 18, color: "#94a3b8", fontWeight: 400 }}>%</span>
                       </div>
-                    </div>
 
-                    {/* RIGHT: PRIMARY CLASSIFICATION */}
-                    <div style={{ textAlign: "right" }}>
-                      <span className="accent-label" style={{ marginBottom: 6, display: "block" }}>Classification</span>
-                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 6 }}>
-                        <span className={`mono ${cfg.text}`}
-                          style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, letterSpacing: "-1px", textTransform: "uppercase" }}>
-                          {result.predicted_class}
-                        </span>
-                        {maxClassProb > 0 && (
-                          <span className="mono" style={{ fontSize: 18, color: "#94a3b8", fontWeight: 400 }}>
-                            {(maxClassProb * 100).toFixed(1)}%
-                          </span>
-                        )}
+                      <div style={{ marginTop: 14 }}>
+                        <div className="gauge-track">
+                          <div
+                            className={`gauge-fill bg-gradient-to-r ${cfg.bar}`}
+                            style={{ width: `${result.vds * 100}%` }}
+                          />
+                        </div>
+                        <div className="mono" style={{
+                          display: "flex", justifyContent: "space-between",
+                          fontSize: 9, color: "#cbd5e1", marginTop: 6, letterSpacing: "0.08em"
+                        }}>
+                          <span>0 · CLEAR</span><span>100 · SEVERE</span>
+                        </div>
                       </div>
-                      {result.vds_source === "seeded" && (
-                        <span style={{ fontSize: 10, color: "#f59e0b", display: "block", marginTop: 4 }}>⚠ range-corrected</span>
-                      )}
                     </div>
-                  </div>
-
-                  {/* PILL BADGE */}
-                  <div style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "4px 10px", borderRadius: 99, border: "1px solid",
-                      fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"
-                    }} className={cfg.pill}>
-                      <span style={{ width: 5, height: 5, borderRadius: "50%", display: "inline-block" }}
-                        className={cfg.dot} />
-                      {result.grade}
-                    </span>
-                  </div>
-
-                  {/* GAUGE */}
-                  <div className="gauge-track">
-                    <div
-                      className={`gauge-fill bg-gradient-to-r ${cfg.bar}`}
-                      style={{ width: `${result.vds * 100}%` }}
-                    />
-                  </div>
-                  <div className="mono" style={{
-                    display: "flex", justifyContent: "space-between",
-                    fontSize: 9, color: "#cbd5e1", marginTop: 6, letterSpacing: "0.08em"
-                  }}>
-                    <span>0 · CLEAR</span><span>100 · SEVERE</span>
                   </div>
                 </div>
               )}
@@ -909,7 +914,7 @@ export default function VDSFundusAnalyser() {
 
 
               {/* VDS Component Scores — hidden for OOD images */}
-              {result && cfg && !isOod && (
+              {/* {result && cfg && !isOod && (
                 <div className="card" style={{ padding: "20px 24px", animation: "fadeUp 0.5s ease both", animationDelay: "0.1s" }}>
                   <span className="accent-label" style={{ marginBottom: 14, display: "block" }}>
                     VDS Component Scores
@@ -925,7 +930,7 @@ export default function VDSFundusAnalyser() {
                     })}
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* ── RIGHT ── */}
@@ -1007,7 +1012,7 @@ export default function VDSFundusAnalyser() {
                   )}
 
                   {/* Region activations — hidden for OOD images */}
-                  {!isOod && result.region_activations && (
+                  {/* {!isOod && result.region_activations && (
                     <div className="card" style={{ padding: "20px 24px" }}>
                       <span className="accent-label" style={{ marginBottom: 14, display: "block" }}>
                         Grad-CAM Region Activations
@@ -1032,7 +1037,7 @@ export default function VDSFundusAnalyser() {
                         Warmer = higher model attention.
                       </p>
                     </div>
-                  )}
+                  )} */}
                 </div>
               )}
             </div>
@@ -1040,10 +1045,11 @@ export default function VDSFundusAnalyser() {
 
           {/* ── FULL WIDTH / BOTTOM ── */}
           {/* Clinical explanation and Disclaimer outside the grid — hidden for OOD images */}
+          {/*
           {result && cfg && !isOod && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 20 }}>
               
-              {/* Clinical explanation */}
+              {/* Clinical explanation }
               {result.clinical && (
                 <div style={{ animation: "fadeUp 0.5s ease both", animationDelay: "0.2s" }}>
                   <ClinicalPanel clinical={result.clinical} cfg={cfg} result={result} />
@@ -1052,7 +1058,7 @@ export default function VDSFundusAnalyser() {
               
             </div>
           )}
-
+          */}
         </div>
       </div>
     </>
