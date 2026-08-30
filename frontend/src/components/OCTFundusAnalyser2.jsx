@@ -1036,35 +1036,18 @@ export default function OCTFundusAnalyser() {
                       </p>
                     </div>
 
-                    {(result.medical_explanation.urgency ||
-                      result.medical_explanation.prognosis) &&
+                    {result.medical_explanation.urgency &&
                       (() => {
                         const meta =
                           CLASS_META[result.prediction] || CLASS_META.NORMAL;
                         return (
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {result.medical_explanation.urgency && (
-                              <div
-                                className={`bg-white border border-slate-200 border-l-4 rounded-xl px-4 py-3.5 ${meta.accent}`}
-                              >
-                                <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-1.5">
-                                  Clinical Urgency
-                                </span>
-                                <p className="text-[12px] text-slate-700 leading-relaxed">
-                                  {result.medical_explanation.urgency}
-                                </p>
-                              </div>
-                            )}
-                            {result.medical_explanation.prognosis && (
-                              <div className="bg-white border border-slate-200 border-l-4 border-l-emerald-500 rounded-xl px-4 py-3.5">
-                                <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-1.5">
-                                  Prognosis
-                                </span>
-                                <p className="text-[12px] text-slate-700 leading-relaxed">
-                                  {result.medical_explanation.prognosis}
-                                </p>
-                              </div>
-                            )}
+                          <div className="bg-white border border-slate-200 border-l-4 rounded-xl px-4 py-3.5 ${meta.accent}">
+                            <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-1.5">
+                              Clinical Urgency
+                            </span>
+                            <p className="text-[12px] text-slate-700 leading-relaxed">
+                              {result.medical_explanation.urgency}
+                            </p>
                           </div>
                         );
                       })()}
