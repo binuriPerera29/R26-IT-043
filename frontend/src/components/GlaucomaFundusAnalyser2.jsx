@@ -18,6 +18,33 @@ import { predictGlaucoma, analyseCDR } from "../services/api_glaucoma";
 
 // ── Metadata ──────────────────────────────────────────────────────────────
 const RISK_META = {
+  normal: {
+    color: "text-emerald-500",
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    dot: "bg-emerald-500",
+    bar: "bg-emerald-500",
+    badge: "bg-emerald-50 text-emerald-500 border-emerald-200",
+    label: "Normal / Low Risk",
+  },
+  early: {
+    color: "text-orange-500",
+    bg: "bg-orange-50",
+    border: "border-orange-200",
+    dot: "bg-orange-500",
+    bar: "bg-orange-500",
+    badge: "bg-orange-50 text-orange-500 border-orange-200",
+    label: "Early Glaucoma",
+  },
+  advanced: {
+    color: "text-red-500",
+    bg: "bg-red-50",
+    border: "border-red-200",
+    dot: "bg-red-500",
+    bar: "bg-red-500",
+    badge: "bg-red-50 text-red-500 border-red-200",
+    label: "Advanced Glaucoma",
+  },
   Normal: {
     color: "text-emerald-500",
     bg: "bg-emerald-50",
@@ -45,8 +72,6 @@ const RISK_META = {
     badge: "bg-red-50 text-red-500 border-red-200",
     label: "Glaucoma Detected",
   },
-  // NEW — used whenever the image is flagged out-of-distribution
-  // (Mahalanobis check) or the classifier's confidence is below 70%.
   ood: {
     color: "text-slate-500",
     bg: "bg-slate-50",
@@ -454,7 +479,9 @@ export default function GlaucomaFundusAnalyser() {
   const activeMeta = result
     ? isOOD
       ? RISK_META.ood
-      : RISK_META[result.glaucoma.prediction.class_name] || RISK_META.Normal
+      : RISK_META[result.glaucoma.prediction.class_name] ||
+        RISK_META[result.glaucoma.prediction.class_name?.toLowerCase()] ||
+        RISK_META.Normal
     : null;
 
   return (
@@ -466,11 +493,10 @@ export default function GlaucomaFundusAnalyser() {
         {/* Page Header */}
         <div className="mb-10 text-center">
           <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">
-            Retinal Glaucoma Screening
+            AI-Assisted Glaucoma Screening
           </h1>
           <p className="text-sm text-slate-500">
-            Automated Optic Disc segmentation, diagnostic classification and Grad-CAM
-            explainability
+           Automated glaucoma classification, CDR analysis, and explainable AI insights for clinical decision support
           </p>
         </div>
 
@@ -518,7 +544,7 @@ export default function GlaucomaFundusAnalyser() {
                   </svg>
                 </div>
                 <p className="text-sm font-bold text-slate-700">Click to upload fundus image</p>
-                <p className="mt-1 text-xs text-slate-400">Supports High-res JPG, PNG</p>
+                <p className="mt-1 text-xs text-slate-400">Supports retinal fundus images in JPG and PNG formats</p>
               </div>
             )}
           </div>
@@ -614,7 +640,7 @@ export default function GlaucomaFundusAnalyser() {
                         AI Classification
                       </span>
                       <h2 className={`text-3xl font-black ${activeMeta.color}`}>
-                        {result.glaucoma.prediction.class_name}
+                        {activeMeta.label}
                       </h2>
                       <p className="mt-1 text-xs font-medium text-slate-500">
                         Based on global features and structural metrics
@@ -640,11 +666,17 @@ export default function GlaucomaFundusAnalyser() {
                       </span>
                       <div className="space-y-5">
                         {Object.entries(result.glaucoma.prediction.probabilities).map(([key, val]) => {
-                          const meta = RISK_META[key] || RISK_META.Normal;
+                          const normalizedKey = key?.toLowerCase();
+                          const displayKey = {
+                            advanced: "Advanced",
+                            early: "Early",
+                            normal: "Normal",
+                          }[normalizedKey] || key;
+                          const meta = RISK_META[normalizedKey] || RISK_META.Normal;
                           return (
                             <div key={key}>
                               <div className="flex justify-between items-center mb-1.5">
-                                <span className="text-xs font-bold text-slate-700">{key}</span>
+                                <span className="text-xs font-bold text-slate-700">{displayKey}</span>
                                 <span className="font-mono text-xs font-bold text-slate-400">{val}%</span>
                               </div>
                               <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
