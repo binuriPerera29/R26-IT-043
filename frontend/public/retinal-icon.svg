@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Retinal icon">
+  <defs>
+    <linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="eye" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#bg)"/>
+  <path d="M16 64c12-22 29-33 48-33s36 11 48 33c-12 22-29 33-48 33S28 86 16 64Z" fill="none" stroke="url(#eye)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="64" cy="64" r="18" fill="#dbeafe" opacity="0.9"/>
+  <circle cx="64" cy="64" r="8" fill="#0f172a"/>
+  <path d="M28 64c9-6 18-9 36-9s27 3 36 9c-9 6-18 9-36 9s-27-3-36-9Z" fill="none" stroke="#7dd3fc" stroke-width="3" opacity="0.85"/>
+  <circle cx="34" cy="38" r="4" fill="#7dd3fc" opacity="0.8"/>
+  <circle cx="92" cy="88" r="4" fill="#7dd3fc" opacity="0.8"/>
+</svg>

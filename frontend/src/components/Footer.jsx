@@ -10,6 +10,7 @@ export default function Footer() {
 
   return (
     <footer
+      className="site-footer"
       style={{
         marginTop: 40,
         borderTop: "1px solid #e8edf3",
@@ -28,6 +29,7 @@ export default function Footer() {
       >
         {/* Top Row */}
         <div
+          className="footer-top-row"
           style={{
             display: "flex",
             justifyContent: "space-between",
@@ -54,20 +56,20 @@ export default function Footer() {
           </div>
 
           {/* Links */}
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <NavLink to="/" style={linkStyle}>
+          <div className="footer-links" style={{ display: "flex", gap: 14, alignItems: "center" }}>
+            <NavLink className="footer-link" to="/" style={linkStyle}>
               Home
             </NavLink>
-            <NavLink to="/dr" style={linkStyle}>
+            <NavLink className="footer-link" to="/dr" style={linkStyle}>
               DR
             </NavLink>
-            <NavLink to="/oct" style={linkStyle}>
+            <NavLink className="footer-link" to="/oct" style={linkStyle}>
               OCT
             </NavLink>
-            <NavLink to="/glaucoma" style={linkStyle}>
+            <NavLink className="footer-link" to="/glaucoma" style={linkStyle}>
               Glaucoma
             </NavLink>
-            <NavLink to="/vds" style={linkStyle}>
+            <NavLink className="footer-link" to="/vds" style={linkStyle}>
               VDS
             </NavLink>
           </div>
@@ -75,6 +77,7 @@ export default function Footer() {
 
         {/* Bottom Row */}
         <div
+          className="footer-bottom-row"
           style={{
             borderTop: "1px solid #f1f5f9",
             paddingTop: 10,

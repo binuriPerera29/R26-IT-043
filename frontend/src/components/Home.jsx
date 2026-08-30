@@ -207,6 +207,7 @@ export default function Home() {
 
   return (
     <div
+      className="home-shell"
       style={{
         minHeight: "100vh",
         background: "#f7f8fa",
@@ -218,10 +219,12 @@ export default function Home() {
 
 
       <main
+        className="home-main"
         style={{ maxWidth: 1080, margin: "0 auto", padding: "48px 24px 80px" }}
       >
         {/* ── Hero ── */}
         <div
+          className="home-hero"
           style={{
             background: "#fff",
             borderRadius: 20,
@@ -249,7 +252,7 @@ export default function Home() {
               pointerEvents: "none",
             }}
           />
-          <div style={{ position: "relative", maxWidth: 540 }}>
+          <div className="home-hero-content" style={{ position: "relative", maxWidth: 540 }}>
             <div
               style={{
                 display: "inline-flex",
@@ -325,6 +328,7 @@ export default function Home() {
 
           {/* Stats cluster */}
           <div
+            className="home-stats-cluster"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
@@ -340,6 +344,7 @@ export default function Home() {
             ].map((s, i) => (
               <div
                 key={i}
+                className="home-stat"
                 style={{
                   background: "#f7f8fa",
                   borderRadius: 14,
@@ -388,6 +393,7 @@ export default function Home() {
           Detection Modules
         </p>
         <div
+          className="home-module-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
@@ -400,6 +406,7 @@ export default function Home() {
             return (
               <div
                 key={mod.id}
+                className="home-module-card"
                 onClick={() => navigate(mod.path)}
                 onMouseEnter={() => setHovered(mod.id)}
                 onMouseLeave={() => setHovered(null)}
@@ -539,6 +546,7 @@ export default function Home() {
 
         {/* ── How it works ── */}
         <div
+          className="home-workflow"
           style={{
             background: "#fff",
             borderRadius: 16,

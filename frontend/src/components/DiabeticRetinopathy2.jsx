@@ -5,33 +5,38 @@ import { analyzeRetina } from "../services/api_dr";
 const GRADE_META = [
   {
     label: "No DR",
-    color: "#10b981",
-    bg: "rgba(16,185,129,0.08)",
-    ring: "#bbf7d0",
-  },
-  {
-    label: "Mild DR",
-    color: "#84cc16",
-    bg: "rgba(132,204,22,0.08)",
+    color: "#1EBD1C",
+    dark: "#1EBD1C",
+    bg: "rgba(30, 189, 28, 0.08)",
     ring: "#d9f99d",
   },
   {
+    label: "Mild DR",
+    color: "#F5F118",
+    dark: "#F5F118",
+    bg: "rgba(245, 241, 24, 0.08)",
+    ring: "#fef9c3",
+  },
+  {
     label: "Moderate DR",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,0.08)",
-    ring: "#fef3c7",
+    color: "#F5770C",
+    dark: "#F5770C",
+    bg: "rgba(245, 119, 12, 0.08)",
+    ring: "#fed7aa",
   },
   {
     label: "Severe DR",
-    color: "#ea580c",
-    bg: "rgba(234,88,12,0.08)",
-    ring: "#ffedd5",
+    color: "#CE0303",
+    dark: "#CE0303",
+    bg: "rgba(206, 3, 3, 0.08)",
+    ring: "#fecaca",
   },
   {
     label: "Proliferative DR",
-    color: "#ef4444",
-    bg: "rgba(239,68,68,0.08)",
-    ring: "#fee2e2",
+    color: "#A1023C",
+    dark: "#A1023C",
+    bg: "rgba(161, 2, 60, 0.08)",
+    ring: "#fbcfe8",
   },
 ];
 
@@ -75,17 +80,20 @@ function LoadingState() {
 }
 
 /* ─── ProbabilityBar ─────────────────────────────────────────────────────── */
-function ProbabilityBar({ name, value, color, isMax }) {
+function ProbabilityBar({ name, value, color, darkColor, isMax }) {
   return (
     <div className="mb-2.5">
       <div className="flex items-center justify-between mb-1">
         <span
           className="text-[10px] font-mono uppercase tracking-tight"
-          style={{ color: isMax ? color : "#94a3b8" }}
+          style={{ color: isMax ? darkColor : "#475569" }}
         >
           {name}
         </span>
-        <span className="text-[10px] font-mono font-bold" style={{ color }}>
+        <span
+          className="text-[10px] font-mono font-bold"
+          style={{ color: darkColor || color }}
+        >
           {value.toFixed(1)}%
         </span>
       </div>
@@ -94,7 +102,8 @@ function ProbabilityBar({ name, value, color, isMax }) {
           className="h-full transition-all duration-1000 ease-out rounded-full"
           style={{
             width: `${value}%`,
-            background: isMax ? color : "#cbd5e1",
+            background: darkColor || color,
+            opacity: isMax ? 1 : 0.72,
           }}
         />
       </div>
@@ -115,6 +124,40 @@ function LesionBadge({ label, count, color, icon }) {
       <span className="font-mono text-sm font-bold text-slate-900">
         {count}
       </span>
+    </div>
+  );
+}
+
+function SeverityScale({ activeGrade }) {
+  return (
+    <div className="pt-4 mt-5 border-t border-slate-100">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
+          Severity scale
+        </span>
+        <span className="text-[10px] font-semibold text-slate-500">
+          Grade {activeGrade} of 4
+        </span>
+      </div>
+      <div className="flex items-start gap-1">
+        {GRADE_META.map((meta, index) => (
+          <div key={meta.label} className="flex-1 min-w-0 text-center">
+            <div
+              className="h-1.5 rounded-full transition-all"
+              style={{
+                background: index <= activeGrade ? meta.color : "#e2e8f0",
+                opacity: index === activeGrade ? 1 : index < activeGrade ? 0.55 : 1,
+              }}
+            />
+            <span
+              className="block mt-1 text-[8px] leading-tight truncate"
+              style={{ color: index === activeGrade ? meta.color : "#94a3b8" }}
+            >
+              {meta.label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -447,27 +490,25 @@ export default function DiabeticRetinopathy() {
                           onClick={handleAnalyse}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-indigo-200 transition-all"
                         >
-                          START AI SCAN
+                          Start AI Analysis
                         </button>
                         <button
                           onClick={handleReset}
                           className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold transition-all"
                         >
-                          CHANGE
+                          CHANGE IMAGE
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div
-                    className="flex flex-col items-center w-full py-10 cursor-pointer"
-                    onClick={() =>
-                      document.getElementById("retina-upload-input").click()
-                    }
+                  <label
+                    htmlFor="retina-upload-input"
+                    className="flex flex-col items-center w-full py-10 text-center cursor-pointer group"
                   >
-                    <div className="flex items-center justify-center w-16 h-16 mb-4 border bg-slate-50 rounded-2xl border-slate-100">
+                    <div className="flex items-center justify-center w-16 h-16 mb-5 transition-all duration-300 border rounded-2xl bg-indigo-50/70 border-indigo-100 group-hover:bg-indigo-100 group-hover:border-indigo-200 group-hover:-translate-y-0.5">
                       <svg
-                        className="w-6 h-6 text-slate-400"
+                        className="w-7 h-7 text-indigo-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -475,26 +516,81 @@ export default function DiabeticRetinopathy() {
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M12 4v16m8-8H4"
+                          strokeWidth="1.7"
+                          d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v2A2.5 2.5 0 0 0 7.5 19h9a2.5 2.5 0 0 0 2.5-2.5v-2"
                         />
                       </svg>
                     </div>
-                    <p className="text-sm font-bold tracking-wide uppercase text-slate-700">
-                      Upload Fundus Photo
+                    <p className="text-sm font-bold tracking-wide text-slate-800">
+                      Upload fundus image
                     </p>
-                    <p className="mt-1 font-mono text-xs italic text-slate-400">
-                      Drop image or click here
+                    <p className="mt-2 text-xs text-slate-500">
+                      Drag and drop your image here, or <span className="font-semibold text-indigo-600">browse files</span>
                     </p>
+                    <span className="px-3 py-1 mt-4 text-[10px] font-semibold tracking-wider uppercase border rounded-full text-slate-500 border-slate-200 bg-slate-50">
+                      JPG or PNG · Recommended for screening
+                    </span>
                     <input
                       id="retina-upload-input"
                       type="file"
+                      accept="image/jpeg,image/png"
                       className="hidden"
                       onChange={(e) => handleFile(e.target.files[0])}
                     />
-                  </div>
+                  </label>
                 )}
               </div>
+
+              {!preview && (
+                <div className="pt-5 mt-6 border-t border-slate-100">
+                  <div className="flex items-start gap-3 p-4 border rounded-2xl border-teal-100 bg-teal-50/60">
+                  <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-xl bg-teal-100 text-teal-700">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9" strokeWidth="1.8" />
+                      <path strokeLinecap="round" strokeWidth="1.8" d="M12 10v6m0-9h.01" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold tracking-wide text-teal-900">
+                      First time using the screener?
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-teal-800/75">
+                      For the most reliable result, upload a clear, well-lit fundus photo with the full circular retina visible.
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5 mt-3 sm:grid-cols-2">
+                      {[
+                        "Avoid blur and glare",
+                        "Keep the retina centered",
+                        "Use JPG or PNG format",
+                        "Do not heavily crop the image",
+                      ].map((tip) => (
+                        <div key={tip} className="flex items-center gap-1.5 text-[10px] font-medium text-teal-900/75">
+                          <svg
+                            className="flex-shrink-0 w-3.5 h-3.5 text-teal-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m5 12 4 4L19 6" />
+                          </svg>
+                          <span>{tip}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  </div>
+                  <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
+                    Screening support only. Results should be reviewed by a qualified clinician.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* AI Result Side Cards */}
@@ -548,6 +644,7 @@ export default function DiabeticRetinopathy() {
                             {result.confidence.toFixed(1)}%
                           </span>
                         </div>
+                        <SeverityScale activeGrade={result.grade} />
                       </div>
                     );
                   })()}
@@ -556,7 +653,7 @@ export default function DiabeticRetinopathy() {
                 {!isOod && (
                   <div className="p-6 bg-white border shadow-sm border-slate-200 rounded-3xl">
                     <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-4">
-                      Clinical Findings
+                      Detected Lesions
                     </span>
                     <div className="grid grid-cols-1 gap-2.5">
                       <LesionBadge
@@ -641,7 +738,7 @@ export default function DiabeticRetinopathy() {
                     <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-6 font-bold">
                       Inference Probability Distribution
                     </span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
+                    <div className="grid grid-cols-1 gap-y-1">
                       {Object.entries(result.probabilities).map(
                         ([name, val], i) => (
                           <ProbabilityBar
@@ -649,6 +746,7 @@ export default function DiabeticRetinopathy() {
                             name={name}
                             value={val}
                             color={GRADE_META[i]?.color || "#6366f1"}
+                            darkColor={GRADE_META[i]?.dark || "#1f2937"}
                             isMax={i === result.grade}
                           />
                         ),
@@ -658,22 +756,22 @@ export default function DiabeticRetinopathy() {
                 )}
 
                 {/* Final Recommendation — always shown, tells the user to re-submit on OOD */}
-                <div className="relative p-8 overflow-hidden text-white bg-indigo-900 shadow-xl rounded-3xl">
+                <div className="relative p-8 overflow-hidden text-white bg-[#173b6d] shadow-xl shadow-[#173b6d]/20 rounded-2xl">
                   <div className="absolute top-0 right-0 p-4 opacity-10">
                     <EyeIcon size={120} color="#fff" />
                   </div>
                   <div className="relative z-10 space-y-6">
                     <div>
-                      <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-2 block">
-                        AI Interpretation
+                      <span className="text-[10px] font-bold text-[#9fc5ff] uppercase tracking-widest mb-2 block">
+                        AI Clinical Interpretation
                       </span>
-                      <p className="text-sm font-medium leading-relaxed text-indigo-50">
+                      <p className="text-sm font-medium leading-relaxed text-[#eef5ff]">
                         {result.explanation}
                       </p>
                     </div>
-                    <div className="p-4 border bg-white/10 backdrop-blur-md border-white/10 rounded-2xl">
-                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2 block tracking-widest">
-                        Medical Action Plan
+                    <div className="p-4 border bg-white/10 backdrop-blur-md border-[#9fc5ff]/25 rounded-xl">
+                      <span className="text-[10px] font-bold text-[#f6c85f] uppercase tracking-widest mb-2 block">
+                        Clinical Recommendation
                       </span>
                       <p className="text-xs italic font-medium leading-relaxed text-slate-200">
                         "{result.recommendation}"
