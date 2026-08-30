@@ -466,7 +466,7 @@ export default function GlaucomaFundusAnalyser() {
         {/* Page Header */}
         <div className="mb-10 text-center">
           <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">
-            Retinal Glaucoma Screening
+            AI-Assisted Glaucoma Screening
           </h1>
           <p className="text-sm text-slate-500">
             Automated Optic Disc segmentation, diagnostic classification and Grad-CAM
