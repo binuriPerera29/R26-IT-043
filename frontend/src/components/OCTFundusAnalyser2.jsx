@@ -804,7 +804,7 @@ export default function OCTFundusAnalyser() {
                   </button>
                   <button
                     disabled={loading}
-                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border-0 bg-gradient-to-br from-indigo-500 to-violet-500 text-white text-[13px] font-semibold cursor-pointer shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 hover:-translate-y-px transition-all disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg border-0 bg-gradient-to-br from-yellow-400 to-amber-500 text-slate-900 text-[13px] font-semibold cursor-pointer shadow-lg shadow-yellow-200 hover:shadow-xl hover:shadow-yellow-300 hover:-translate-y-px transition-all disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAnalyse();
@@ -955,8 +955,8 @@ export default function OCTFundusAnalyser() {
                 <CautionBanner result={result} />
 
                 {/* Two-col layout */}
-                <div className="grid grid-cols-2 gap-3.5 items-start max-lg:grid-cols-1">
-                  {/* LEFT: Image viewer + Grad-CAM */}
+                <div className="grid grid-cols-[1.2fr_0.9fr] gap-3.5 items-start max-lg:grid-cols-1">
+                  {/* LEFT: image-focused analysis */}
                   <div className="flex flex-col gap-2.5">
                     <ImageViewer
                       result={result}
@@ -990,16 +990,13 @@ export default function OCTFundusAnalyser() {
                       </div>
                     </div>
 
-                    {/* Detection diagnostics — always visible, not just when flagged */}
                     <DiagnosticsPanel result={result} />
 
-                    {/* ── Risk Meter (locked to scan result) ── */}
                     <RiskMeter activeCondition={result.prediction} />
                   </div>
 
-                  {/* RIGHT: Probabilities + Medical Explanation */}
+                  {/* RIGHT: summary and medical context */}
                   <div className="flex flex-col gap-2.5">
-                    {/* Class Probabilities */}
                     <div className="px-5 py-4 bg-white border border-slate-200 rounded-2xl">
                       <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-3.5">
                         Class Probabilities
@@ -1020,12 +1017,8 @@ export default function OCTFundusAnalyser() {
                             />
                           ))}
                       </div>
-                      <div className="pt-3 mt-4 border-t border-slate-100">
-                        <div className="flex flex-col gap-1.5"></div>
-                      </div>
                     </div>
 
-                    {/* Medical Explanation divider */}
                     <div className="flex items-center gap-2.5">
                       <div className="flex-1 h-px bg-slate-200" />
                       <span className="font-mono text-[10px] text-indigo-500 flex items-center gap-1 whitespace-nowrap">
@@ -1034,7 +1027,6 @@ export default function OCTFundusAnalyser() {
                       <div className="flex-1 h-px bg-slate-200" />
                     </div>
 
-                    {/* About This Condition */}
                     <div className="bg-white border border-slate-200 rounded-xl px-4 py-3.5">
                       <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-2">
                         About This Condition
@@ -1044,129 +1036,23 @@ export default function OCTFundusAnalyser() {
                       </p>
                     </div>
 
-                    {/* OCT Findings */}
-                    <div className="bg-white border border-slate-200 rounded-xl px-4 py-3.5">
-                      <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-2.5">
-                        OCT Findings Observed
-                      </span>
-                      <div className="flex flex-col gap-2">
-                        {result.medical_explanation.oct_findings?.map((f, i) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <span className="w-[17px] h-[17px] rounded-full flex-shrink-0 bg-indigo-50 border border-indigo-200 flex items-center justify-center text-[9px] font-mono text-indigo-500 font-bold mt-0.5">
-                              {i + 1}
-                            </span>
-                            <span className="text-[12px] text-slate-500 leading-relaxed">
-                              {f}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Recommendations only (no causes) */}
-                    {result.medical_explanation.treatment?.length > 0 &&
-                      !result.medical_explanation.causes?.length && (
-                        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3.5">
-                          <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-2.5">
-                            Recommendations
-                          </span>
-                          <div className="flex flex-col gap-1.5">
-                            {result.medical_explanation.treatment.map((t, i) => (
-                              <div
-                                key={i}
-                                className="flex gap-2 text-[12px] text-slate-500"
-                              >
-                                <span className="flex-shrink-0 text-emerald-500">
-                                  ✓
-                                </span>
-                                {t}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Causes + Treatment (when causes exist) */}
-                    {result.medical_explanation.causes?.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3.5">
-                          <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-2.5">
-                            Common Causes
-                          </span>
-                          <div className="flex flex-col gap-1.5">
-                            {result.medical_explanation.causes.map((c, i) => (
-                              <div
-                                key={i}
-                                className="flex gap-2 text-[12px] text-slate-500"
-                              >
-                                <span className="flex-shrink-0 text-indigo-500">
-                                  ▸
-                                </span>
-                                {c}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {result.medical_explanation.treatment?.length > 0 && (
-                          <div className="bg-white border border-slate-200 rounded-xl px-4 py-3.5">
-                            <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-2.5">
-                              Treatment Options
-                            </span>
-                            <div className="flex flex-col gap-1.5">
-                              {result.medical_explanation.treatment.map((t, i) => (
-                                <div
-                                  key={i}
-                                  className="flex gap-2 text-[12px] text-slate-500"
-                                >
-                                  <span className="flex-shrink-0 text-emerald-500">
-                                    ✓
-                                  </span>
-                                  {t}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Urgency + Prognosis */}
-                    {(result.medical_explanation.urgency ||
-                      result.medical_explanation.prognosis) &&
+                    {result.medical_explanation.urgency &&
                       (() => {
                         const meta =
                           CLASS_META[result.prediction] || CLASS_META.NORMAL;
                         return (
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {result.medical_explanation.urgency && (
-                              <div
-                                className={`bg-white border border-slate-200 border-l-4 rounded-xl px-4 py-3.5 ${meta.accent}`}
-                              >
-                                <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-1.5">
-                                  Clinical Urgency
-                                </span>
-                                <p className="text-[12px] text-slate-700 leading-relaxed">
-                                  {result.medical_explanation.urgency}
-                                </p>
-                              </div>
-                            )}
-                            {result.medical_explanation.prognosis && (
-                              <div className="bg-white border border-slate-200 border-l-4 border-l-emerald-500 rounded-xl px-4 py-3.5">
-                                <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-1.5">
-                                  Prognosis
-                                </span>
-                                <p className="text-[12px] text-slate-700 leading-relaxed">
-                                  {result.medical_explanation.prognosis}
-                                </p>
-                              </div>
-                            )}
+                          <div className="bg-white border border-slate-200 border-l-4 rounded-xl px-4 py-3.5 ${meta.accent}">
+                            <span className="font-mono text-[10px] tracking-widest uppercase text-slate-400 block mb-1.5">
+                              Clinical Urgency
+                            </span>
+                            <p className="text-[12px] text-slate-700 leading-relaxed">
+                              {result.medical_explanation.urgency}
+                            </p>
                           </div>
                         );
                       })()}
                   </div>
-                  {/* end RIGHT */}
                 </div>
-                {/* end two-col */}
               </div>
             )}
           </div>
