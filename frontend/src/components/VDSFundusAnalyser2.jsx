@@ -1039,10 +1039,11 @@ export default function VDSFundusAnalyser() {
 
           {/* ── FULL WIDTH / BOTTOM ── */}
           {/* Clinical explanation and Disclaimer outside the grid — hidden for OOD images */}
+          {/*
           {result && cfg && !isOod && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 20 }}>
               
-              {/* Clinical explanation */}
+              {/* Clinical explanation }
               {result.clinical && (
                 <div style={{ animation: "fadeUp 0.5s ease both", animationDelay: "0.2s" }}>
                   <ClinicalPanel clinical={result.clinical} cfg={cfg} result={result} />
@@ -1051,7 +1052,7 @@ export default function VDSFundusAnalyser() {
               
             </div>
           )}
-
+          */}
         </div>
       </div>
     </>
